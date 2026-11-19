@@ -20,4 +20,6 @@ html = html
   .replace('/*APP*/', () => esc(js));
 fs.mkdirSync('dist', { recursive: true });
 fs.writeFileSync('dist/index.html', html);
+for (const f of ['manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-180.png', 'icon.svg']) fs.copyFileSync('src/pwa/' + f, 'dist/' + f);
+fs.writeFileSync('dist/sw.js', fs.readFileSync('src/pwa/sw.js', 'utf8').replace('__BUILD__', Date.now().toString(36)));
 console.log('dist/index.html', (html.length / 1024).toFixed(0) + ' KB');

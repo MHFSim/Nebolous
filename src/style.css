@@ -164,7 +164,7 @@ input.hue::-moz-range-track { background: linear-gradient(90deg, hsl(0 85% 55%),
 #banner.show { animation: banner 2.4s ease forwards; } #banner small { display: block; font-family: var(--ui); font-size: 0.42em; font-weight: 700; letter-spacing: 0.08em; color: #cfe2ff; }
 @keyframes banner { 0% { opacity: 0; transform: scale(0.6); } 12% { opacity: 1; transform: scale(1.08); } 20% { transform: scale(1); } 80% { opacity: 1; } 100% { opacity: 0; transform: scale(1.05); } }
 #toasts { position: fixed; left: 0; right: 0; bottom: calc(84px + var(--sb)); display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none; z-index: 40; padding: 0 12px; }
-#toasts div { background: rgba(14, 18, 40, 0.92); border: 1px solid var(--line); border-radius: 14px; padding: 8px 14px; font-weight: 600; font-size: 15px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); animation: toast 3.6s forwards; max-width: 100%; text-align: center; }
+#toasts div { background: rgba(14, 18, 40, 0.92); border: 1px solid var(--line); border-radius: 14px; padding: 8px 14px; font-weight: 600; font-size: 15px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.5); animation: toast 5s forwards; max-width: 100%; text-align: center; }
 #toasts div.ach { border-color: var(--gold); } #toasts div b { color: var(--gold); }
 @keyframes toast { 0% { opacity: 0; transform: translateY(12px); } 8% { opacity: 1; transform: none; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
 

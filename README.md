@@ -6,6 +6,13 @@ Ein Blob-Fress-Spiel im Weltall fürs Handy, angelehnt an das Spielprinzip von N
 
 Jeder Push auf `main` baut das Spiel, lässt die Tests laufen und stellt es auf GitHub Pages (`.github/workflows/pages.yml`). Einmalig nötig: unter *Settings → Pages → Build and deployment → Source* „GitHub Actions“ wählen.
 
+## Als App installieren
+
+- **Android (Chrome):** Seite öffnen, auf „📲 Als App installieren“ tippen oder im Menü ⋮ „App installieren“ wählen.
+- **iPhone/iPad:** Seite in **Safari** öffnen, auf Teilen tippen, dann „Zum Home-Bildschirm“.
+
+Die App startet im Vollbild und öffnet sich auch ohne Internet (Solo mit Bots). Mehrspieler braucht Internet.
+
 ## Was drin ist
 
 - Wachsen durch Sternenstaub und kleinere Spieler, Teilen, Masse auswerfen, Wiederverschmelzen

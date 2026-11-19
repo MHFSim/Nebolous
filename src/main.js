@@ -45,7 +45,7 @@ function toast(html, cls = '') {
   const d = document.createElement('div'); d.innerHTML = html; if (cls) d.className = cls;
   const box = $('toasts'); box.appendChild(d);
   while (box.children.length > 3) box.firstChild.remove();
-  setTimeout(() => d.remove(), 3600);
+  setTimeout(() => d.remove(), 5000);
 }
 function banner(html) { const b = $('banner'); b.innerHTML = html; b.classList.remove('show'); void b.offsetWidth; b.classList.add('show'); }
 function feed(html) { const f = $('feed'); const d = document.createElement('div'); d.innerHTML = html; f.appendChild(d); while (f.children.length > 3) f.firstChild.remove(); setTimeout(() => d.remove(), 4000); }
@@ -599,6 +599,32 @@ window.addEventListener('orientationchange', () => setTimeout(() => renderer.res
 window.addEventListener('pagehide', () => { if (session) { award(); session.close(); } });
 document.addEventListener('pointerdown', unlockAudio, { once: false, passive: true });
 document.addEventListener('gesturestart', (e) => e.preventDefault());
+
+// ---------- Als App installieren ----------
+(function setupInstall() {
+  const web = location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  let framed = false; try { framed = window.self !== window.top; } catch (e) { framed = true; }
+  if (!web || framed || /claude/.test(location.hostname)) return; // in der Vorschau nicht möglich
+  const head = document.head, add = (tag, attrs) => { const el = document.createElement(tag); Object.assign(el, attrs); head.appendChild(el); };
+  add('link', { rel: 'manifest', href: 'manifest.webmanifest' });
+  add('link', { rel: 'apple-touch-icon', href: 'icon-180.png' });
+  add('link', { rel: 'icon', href: 'icon-192.png' });
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  const standalone = (window.matchMedia && (matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches)) || navigator.standalone;
+  if (standalone) return;
+  const btn = $('install'); let deferred = null;
+  const ua = navigator.userAgent, ios = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; btn.classList.remove('hidden'); });
+  window.addEventListener('appinstalled', () => { btn.classList.add('hidden'); toast('Sternfresser ist installiert 🎉'); });
+  if (ios) btn.classList.remove('hidden');
+  else setTimeout(() => { if (!deferred) btn.classList.remove('hidden'); }, 4000);
+  btn.onclick = async () => {
+    sfx.click();
+    if (deferred) { deferred.prompt(); try { await deferred.userChoice; } catch (e) { /* ignore */ } deferred = null; return; }
+    if (ios) toast('iPhone/iPad: In <b>Safari</b> unten auf <b>Teilen</b> tippen, dann <b>„Zum Home-Bildschirm“</b>.');
+    else toast('Im Browser-Menü <b>⋮</b> auf <b>„App installieren“</b> oder <b>„Zum Startbildschirm hinzufügen“</b> tippen.');
+  };
+})();
 
 // Start
 startDemo(); show('home');

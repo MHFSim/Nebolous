@@ -1,0 +1,20 @@
+{
+  "name": "Sternfresser",
+  "short_name": "Sternfresser",
+  "description": "Friss dich durch die Galaxie – Blob-Spiel mit Mehrspieler per Raumcode",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "id": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#04050d",
+  "theme_color": "#04050d",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
