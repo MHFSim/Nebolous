@@ -1,0 +1,22 @@
+{
+  "name": "sternfresser",
+  "version": "1.0.0",
+  "description": "Blob-Fress-Spiel im Weltall mit Mehrspieler per Raumcode",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "node build.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "peer": "^1.0.2",
+    "peerjs": "^1.5.5"
+  },
+  "type": "module",
+  "private": true
+}

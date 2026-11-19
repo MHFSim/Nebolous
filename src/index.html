@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#04050d">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Sternfresser</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+<style>/*CSS*/</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="lb" class="panel"></div>
+  <div id="topc">
+    <div id="status"></div>
+    <div id="feed"></div>
+  </div>
+  <div id="topr">
+    <canvas id="mini"></canvas>
+    <div class="hbtns">
+      <button id="b-menu" class="hbtn" aria-label="Menü">☰</button>
+      <button id="b-emote" class="hbtn" aria-label="Emotes">💬</button>
+    </div>
+    <div id="emotes" class="hidden"></div>
+  </div>
+  <div id="massbar"><b id="mass">0</b><span id="massinfo"></span></div>
+  <div id="btns">
+    <button id="b-item" class="gbtn item empty"><span class="ic">✦</span><small>Item</small></button>
+    <button id="b-eject" class="gbtn eject"><span class="ic">◉</span><small>Auswurf</small></button>
+    <button id="b-split" class="gbtn split"><span class="ic">⟡</span><small>Teilen</small></button>
+  </div>
+  <button id="b-respawn" class="btn primary hidden">Wieder einsteigen</button>
+  <div id="banner"></div>
+</div>
+<div id="toasts"></div>
+
+<div id="screens">
+  <section id="s-home" class="screen">
+    <div class="card home">
+      <h1 class="logo">STERN<span>FRESSER</span></h1>
+      <p class="tag">Friss dich durch die Galaxie</p>
+      <div class="mebox">
+        <button id="skin-btn" class="skinprev" aria-label="Skin wählen"><canvas id="skin-cv" width="144" height="144"></canvas><span>ändern</span></button>
+        <div class="mef">
+          <label for="name">Dein Name</label>
+          <input id="name" maxlength="14" autocomplete="off" autocapitalize="off" spellcheck="false">
+          <div class="lvl"><b id="lvl-badge">Lvl 1</b><div class="bar"><i id="lvl-bar"></i></div></div>
+        </div>
+      </div>
+      <button id="go-solo" class="btn primary big">▶ Solo spielen</button>
+      <div class="row2">
+        <button id="go-host" class="btn big">Spiel hosten</button>
+        <button id="go-join" class="btn big">Beitreten</button>
+      </div>
+      <div class="row4">
+        <button data-go="profile" class="btn ghost">Profil</button>
+        <button data-go="skins" class="btn ghost">Skins</button>
+        <button data-go="settings" class="btn ghost">Optionen</button>
+        <button data-go="help" class="btn ghost">Anleitung</button>
+      </div>
+      <p id="net-note" class="note hidden"></p>
+    </div>
+  </section>
+
+  <section id="s-setup" class="screen hidden">
+    <div class="card">
+      <header><button class="back" data-go="home">‹</button><h2 id="setup-title">Solo spielen</h2></header>
+      <div class="body">
+        <h3>Modus</h3>
+        <div id="o-mode" class="modes"></div>
+        <div id="o-map-w"><h3>Karte</h3><div id="o-map" class="seg"></div></div>
+        <div id="o-time-w"><h3>Rundenzeit</h3><div id="o-time" class="seg"></div></div>
+        <div id="o-teams-w"><h3>Teams</h3><div id="o-teams" class="seg"></div></div>
+        <h3>Bots <b id="o-bots-n"></b></h3>
+        <input id="o-bots" type="range" min="0" max="28" step="1">
+        <h3>Bot-Stärke</h3><div id="o-lvl" class="seg"></div>
+        <h3>Maximale Teile</h3><div id="o-cells" class="seg"></div>
+        <div class="toggles">
+          <label class="tog"><input type="checkbox" id="o-items"><span></span>Gegenstände</label>
+          <label class="tog"><input type="checkbox" id="o-mayhem"><span></span>Chaos-Modus</label>
+        </div>
+      </div>
+      <footer><button id="setup-start" class="btn primary big">Los geht's</button></footer>
+    </div>
+  </section>
+
+  <section id="s-join" class="screen hidden">
+    <div class="card">
+      <header><button class="back" data-go="home">‹</button><h2>Partie beitreten</h2></header>
+      <div class="body center">
+        <p>Gib den Raumcode ein, den dir der Host gezeigt hat. Du steigst direkt in die laufende Partie ein.</p>
+        <input id="join-code" class="code" maxlength="5" placeholder="•••••" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <p id="join-msg" class="note"></p>
+      </div>
+      <footer><button id="join-start" class="btn primary big">Beitreten</button></footer>
+    </div>
+  </section>
+
+  <section id="s-skins" class="screen hidden">
+    <div class="card">
+      <header><button class="back" data-go="home">‹</button><h2>Skins</h2></header>
+      <div class="body">
+        <h3>Farbe</h3>
+        <input id="hue" type="range" min="0" max="359" step="1" class="hue">
+        <h3>Aussehen <small id="skin-count"></small></h3>
+        <div id="skin-grid" class="skins"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="s-profile" class="screen hidden">
+    <div class="card">
+      <header><button class="back" data-go="home">‹</button><h2>Profil</h2></header>
+      <div class="body">
+        <div id="prof-head"></div>
+        <h3>Statistik</h3><div id="prof-stats" class="stats"></div>
+        <h3>Erfolge <small id="ach-count"></small></h3><div id="prof-ach" class="achs"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="s-settings" class="screen hidden">
+    <div class="card">
+      <header><button class="back" id="settings-back">‹</button><h2>Optionen</h2></header>
+      <div class="body">
+        <h3>Grafik</h3><div id="st-quality" class="seg"></div>
+        <h3>Hintergrund</h3><div id="st-theme" class="seg"></div>
+        <div class="toggles col">
+          <label class="tog"><input type="checkbox" id="st-sound"><span></span>Ton</label>
+          <label class="tog"><input type="checkbox" id="st-names"><span></span>Namen anzeigen</label>
+          <label class="tog"><input type="checkbox" id="st-mass"><span></span>Masse anzeigen</label>
+          <label class="tog"><input type="checkbox" id="st-stop"><span></span>Anhalten beim Loslassen</label>
+          <label class="tog"><input type="checkbox" id="st-left"><span></span>Knöpfe links (Linkshänder)</label>
+        </div>
+        <button id="st-full" class="btn">Vollbild umschalten</button>
+        <p id="st-note" class="note"></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="s-help" class="screen hidden">
+    <div class="card">
+      <header><button class="back" data-go="home">‹</button><h2>Anleitung</h2></header>
+      <div class="body help" id="help-body"></div>
+    </div>
+  </section>
+
+  <section id="s-connect" class="screen hidden">
+    <div class="card small center">
+      <div class="spinner"></div>
+      <h2 id="conn-title">Verbinde …</h2>
+      <p id="conn-msg" class="note"></p>
+      <button id="conn-cancel" class="btn">Abbrechen</button>
+    </div>
+  </section>
+
+  <section id="s-pause" class="screen overlay hidden">
+    <div class="card">
+      <header><h2>Pause</h2><button class="back x" id="pause-close">✕</button></header>
+      <div class="body">
+        <div id="room-box" class="room hidden">
+          <small>Raumcode</small>
+          <div id="room-code" class="roomcode"></div>
+          <div class="row2"><button id="room-copy" class="btn">Code kopieren</button><button id="room-link" class="btn">Link kopieren</button></div>
+          <p class="note" id="room-note"></p>
+        </div>
+        <div id="host-box" class="hidden">
+          <h3>Bots <b id="pause-bots-n"></b></h3>
+          <input id="pause-bots" type="range" min="0" max="28" step="1">
+        </div>
+        <h3>Spieler <small id="pl-count"></small></h3>
+        <div id="pl-list" class="plist"></div>
+      </div>
+      <footer class="col">
+        <button id="pause-resume" class="btn primary big">Weiterspielen</button>
+        <div class="row2"><button id="pause-settings" class="btn">Optionen</button><button id="pause-leave" class="btn danger">Verlassen</button></div>
+      </footer>
+    </div>
+  </section>
+
+  <section id="s-death" class="screen overlay hidden">
+    <div class="card small center">
+      <h2 id="death-title">Gefressen!</h2>
+      <p id="death-sub" class="note"></p>
+      <div id="death-stats" class="stats"></div>
+      <div class="lvl wide"><b id="death-lvl">Lvl 1</b><div class="bar"><i id="death-bar"></i></div><span id="death-xp"></span></div>
+      <button id="death-again" class="btn primary big">Nochmal</button>
+      <div class="row2"><button id="death-watch" class="btn">Zuschauen</button><button id="death-leave" class="btn">Verlassen</button></div>
+    </div>
+  </section>
+
+  <section id="s-round" class="screen overlay hidden">
+    <div class="card small center">
+      <h2 id="round-title">Runde vorbei</h2>
+      <p id="round-sub" class="note"></p>
+      <div id="round-table" class="rtable"></div>
+      <p id="round-next" class="note"></p>
+    </div>
+  </section>
+</div>
+
+<script>/*PEER*/</script>
+<script>/*APP*/</script>
+</body>
+</html>
