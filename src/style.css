@@ -191,3 +191,7 @@ body.ingame.lefty #toasts { align-items: flex-end; left: calc(214px + var(--sl))
 .daily .m.done span { color: var(--dim); text-decoration: line-through; } .daily .m.done b { color: var(--good); }
 .modes button:last-child:nth-child(odd) { grid-column: 1 / -1; }
 @media (max-height: 460px) { .daily { display: none; } }
+.jl { display: block; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--dim); font-weight: 700; margin-top: 14px; }
+.jname { width: 100%; max-width: 300px; margin: 6px auto 0; display: block; text-align: center; background: rgba(0, 0, 20, 0.5); border: 1px solid var(--line); border-radius: 12px; padding: 9px 12px; font-size: 20px; font-weight: 700; outline: none; -webkit-user-select: text; user-select: text; }
+.jname:focus { border-color: var(--acc); box-shadow: 0 0 0 3px rgba(95, 212, 255, 0.2); }
+.jl + .code { margin-top: 6px; }

@@ -2,16 +2,11 @@
 
 Ein Blob-Fress-Spiel im Weltall fürs Handy, angelehnt an das Spielprinzip von Nebulous.io und Agar.io. Mehrspieler bis 12 Menschen: Einer hostet, die anderen treten per Raumcode bei, auch mitten in der laufenden Partie.
 
-**Spielen:** https://mhfsim.github.io/Nebolous/
+**Spielen:** https://zehnkronen.com/Sternfresser (eigener Spielserver) · https://mhfsim.github.io/Nebolous/ (GitHub Pages, Mehrspieler über PeerJS)
+
+**Auf den eigenen Server bringen:** siehe [ANLEITUNG-SERVER.md](ANLEITUNG-SERVER.md).
 
 Jeder Push auf `main` baut das Spiel, lässt die Tests laufen und stellt es auf GitHub Pages (`.github/workflows/pages.yml`). Einmalig nötig: unter *Settings → Pages → Build and deployment → Source* „GitHub Actions“ wählen.
-
-## Als App installieren
-
-- **Android (Chrome):** Seite öffnen, auf „📲 Als App installieren“ tippen oder im Menü ⋮ „App installieren“ wählen.
-- **iPhone/iPad:** Seite in **Safari** öffnen, auf Teilen tippen, dann „Zum Home-Bildschirm“.
-
-Die App startet im Vollbild und öffnet sich auch ohne Internet (Solo mit Bots). Mehrspieler braucht Internet.
 
 ## Was drin ist
 
@@ -32,20 +27,21 @@ npm test          # Logiktests (node --test)
 npm run build     # erzeugt dist/index.html (eine einzige Datei)
 ```
 
-Mehrspieler nutzt standardmäßig den kostenlosen PeerJS-Server (WebRTC). Die Seite braucht dafür HTTPS. Zum lokalen Testen: `node test/peerserver.cjs` starten und das Spiel mit `?signal=127.0.0.1:9000` öffnen. `test/e2e_multiplayer.py` spielt mit Playwright einen Host und einen Gast durch.
+Läuft das Spiel über `server/index.mjs` (Docker), erkennt es den Server automatisch und spielt die Partien dort (WebSocket, Räume mit Code, Wiederverbinden, Raumchef-Wechsel). Ohne Server (GitHub Pages) nutzt der Mehrspieler den kostenlosen PeerJS-Server (WebRTC). Die Seite braucht dafür HTTPS. Zum lokalen Testen: `node test/peerserver.cjs` starten und das Spiel mit `?signal=127.0.0.1:9000` öffnen. `test/e2e_multiplayer.py` spielt mit Playwright einen Host und einen Gast durch.
 
 ## Aufbau
 
 | Datei | Inhalt |
 | --- | --- |
 | `src/sim.js`, `src/bots.js` | Spiellogik und Computergegner, läuft beim Host |
-| `src/proto.js`, `src/net.js` | Binär-Snapshots mit Sichtbereich, Host- und Client-Sitzung |
+| `src/proto.js`, `src/net.js` | Binär-Snapshots mit Sichtbereich, Sitzungen für Server, Host und Gast |
+| `server/index.mjs`, `Dockerfile` | Spielserver: Räume, liefert auch die Webseite aus |
 | `src/world.js`, `src/render.js`, `src/skins.js` | Anzeige: weiche Bewegung, Kamera, Canvas-Grafik |
 | `src/input.js`, `src/audio.js`, `src/store.js` | Steuerung, Ton, Profil |
 | `src/main.js`, `src/index.html`, `src/style.css` | Menüs, HUD, Verdrahtung |
 
 ## Bekannte Grenzen
 
-- Das Spiel läuft auf dem Gerät des Hosts. Schließt er die Seite oder wechselt am Handy die App, endet oder pausiert die Partie für alle. Host-Wechsel ist nicht eingebaut.
+- Nur auf GitHub Pages: Dort läuft die Partie auf dem Gerät des Hosts. Schließt er die Seite, endet sie für alle. Mit dem eigenen Server gilt das nicht.
 - Getestet mit 2 Spielern in Headless-Chrome. Viele echte Handys gleichzeitig sind nicht getestet.
 - Fortschritt (Level, Skins, Erfolge) liegt nur im Browser des jeweiligen Geräts.

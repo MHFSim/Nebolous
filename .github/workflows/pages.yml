@@ -30,6 +30,18 @@ jobs:
         with:
           path: dist
 
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docker-Image bauen (wie auf dem Zehn-Kronen-Server)
+        run: docker build -t sternfresser .
+      - name: Server starten und prüfen
+        run: |
+          docker run -d --name sf -p 3000:3000 sternfresser
+          for i in $(seq 1 20); do curl -fs http://127.0.0.1:3000/Sternfresser/health && exit 0; sleep 1; done
+          docker logs sf; exit 1
+
   deploy:
     needs: build
     runs-on: ubuntu-latest

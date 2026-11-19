@@ -3,7 +3,7 @@ import { Sim } from './sim.js';
 import { World } from './world.js';
 import { Renderer } from './render.js';
 import { Input } from './input.js';
-import { HostSession, ClientSession, cleanCode, netAvailable } from './net.js';
+import { HostSession, ClientSession, ServerSession, detectServer, cleanCode, netAvailable } from './net.js';
 import { encodeSnapshot, decodeSnapshot, encodeDots, decodeDots } from './proto.js';
 import { SKINS, skinTexture } from './skins.js';
 import { sfx, setSound, unlockAudio } from './audio.js';
@@ -24,7 +24,7 @@ setSound(store.settings.sound);
 
 let session = null, demo = null, inGame = false, pending = null;
 let hostOpts = { ...DEFAULT_OPTS, ...(store.host || {}) };
-let setupOnline = false, settingsFrom = 'home';
+let setupOnline = false, settingsFrom = 'home', serverMode = false;
 const life = { active: false, start: 0, best: 0, kills: 0, bonus: 0 };
 let lastDeath = null, roundShown = false, watchMode = false, wasTop = false, streak = 0, streakAt = 0;
 
@@ -35,6 +35,7 @@ function show(name) {
   current = name;
   for (const s of SCREENS) $('s-' + s).classList.toggle('hidden', s !== name);
   if (name === 'home') refreshHome();
+  if (name === 'join') $('join-name').value = store.name;
   if (name === 'skins') buildSkins();
   if (name === 'profile') buildProfile();
   if (name === 'pause') buildPause();
@@ -82,7 +83,7 @@ function refreshHome() {
   levelBar($('lvl-badge'), $('lvl-bar'));
   renderDaily();
   const note = $('net-note');
-  if (!netAvailable()) { note.classList.remove('hidden'); note.textContent = 'Mehrspieler ist in dieser Ansicht gesperrt. Solo mit Bots funktioniert.'; } else note.classList.add('hidden');
+  if (!serverMode && !netAvailable()) { note.classList.remove('hidden'); note.textContent = 'Mehrspieler ist in dieser Ansicht gesperrt. Solo mit Bots funktioniert.'; } else note.classList.add('hidden');
 }
 $('name').addEventListener('input', () => { store.name = $('name').value.replace(/[<>]/g, '').slice(0, 14); saveStore(); });
 $('name').addEventListener('change', () => { if (!store.name.trim()) { store.name = 'Blob' + (100 + Math.floor(Math.random() * 900)); $('name').value = store.name; saveStore(); } });
@@ -96,8 +97,8 @@ $('go-join').onclick = () => { unlockAudio(); sfx.click(); $('join-msg').textCon
 const MODE_ICON = { ffa: '🪐', teams: '🤝', royale: '🏆', soccer: '⚽', ctf: '🚩' };
 const timed = (m) => m === 'soccer' || m === 'ctf';
 function openSetup() {
-  $('setup-title').textContent = setupOnline ? 'Spiel hosten' : 'Solo spielen';
-  $('setup-start').textContent = setupOnline ? 'Raum öffnen und starten' : "Los geht's";
+  $('setup-title').textContent = setupOnline ? (serverMode ? 'Raum erstellen' : 'Spiel hosten') : 'Solo spielen';
+  $('setup-start').textContent = setupOnline ? 'Raum erstellen und starten' : "Los geht's";
   const o = hostOpts;
   const vis = () => {
     $('o-map-w').classList.toggle('hidden', timed(o.mode));
@@ -137,23 +138,30 @@ const NET_MSG = {
   host: 'Der Host hat die Partie beendet.',
   lost: 'Verbindung zum Host verloren.',
   closed: 'Die Verbindung wurde abgelehnt.',
+  busy: 'Auf dem Server ist gerade kein Raum mehr frei. Versuch es gleich nochmal.',
+  expired: 'Du warst zu lange weg und wurdest aus der Partie genommen.',
+  restart: 'Der Server startet gerade neu. Versuch es in einer Minute nochmal.',
+  error: 'Auf dem Server ist ein Fehler aufgetreten. Die Partie wurde beendet.',
+  nosrv: 'Der Spielserver ist nicht erreichbar. Prüfe deine Internetverbindung.',
 };
 const netMsg = (why) => NET_MSG[why] || 'Verbindung fehlgeschlagen. Auf einer normalen Webseite mit Internet sollte es klappen.';
+$('join-name').addEventListener('input', () => { store.name = $('join-name').value.replace(/[<>]/g, '').slice(0, 14); saveStore(); });
 $('join-code').addEventListener('input', () => { $('join-code').value = cleanCode($('join-code').value); });
 $('join-code').addEventListener('keydown', (e) => { if (e.key === 'Enter') $('join-start').click(); });
 $('join-start').onclick = () => {
   unlockAudio();
   const code = cleanCode($('join-code').value);
   if (code.length !== 5) { $('join-msg').textContent = 'Der Code hat 5 Zeichen.'; return; }
+  if (!store.name.trim()) { store.name = 'Blob' + (100 + Math.floor(Math.random() * 900)); saveStore(); }
   startJoin(code);
 };
-$('conn-cancel').onclick = () => { if (pending) { pending.cancelled = true; pending.close(); pending = null; } show('join'); if (!demo) startDemo(); };
+$('conn-cancel').onclick = () => { const kind = pending && pending.kind; if (pending) { pending.cancelled = true; pending.close(); pending = null; } session = null; show(kind === 'create' ? 'setup' : 'join'); if (!demo) startDemo(); };
 
 async function startJoin(code) {
   $('conn-title').textContent = 'Verbinde mit ' + code + ' …'; $('conn-msg').textContent = '';
   show('connect');
   stopDemo(); world.reset();
-  const s = new ClientSession(code, profile(), handlers);
+  const s = serverMode ? new ServerSession('join', code, profile(), handlers) : new ClientSession(code, profile(), handlers);
   pending = s; session = s;
   try {
     await s.start();
@@ -180,7 +188,7 @@ const handlers = {
   info(i) { world.info = i; },
   players(t) {
     const now = new Map(t.filter((p) => !p[5]).map((p) => [p[0], p[1]]));
-    for (const [pid, name] of now) if (!knownHumans.has(pid) && pid !== world.me) { toast(`<b>${esc(name)}</b> ist beigetreten`); if (session && session.isHost) achieve('host'); if (session && session.isHost) achieve('multi'); }
+    for (const [pid, name] of now) if (!knownHumans.has(pid) && pid !== world.me) { toast(`<b>${esc(name)}</b> ist beigetreten`); if (session && session.isHost) { achieve('host'); achieve('multi'); } }
     for (const [pid, name] of knownHumans) if (!now.has(pid)) toast(`<b>${esc(name)}</b> hat die Partie verlassen`);
     knownHumans = now;
     world.setPlayers(t);
@@ -188,9 +196,36 @@ const handlers = {
   },
   events(list) { for (const e of list) onEvent(e); },
   close(why) { leaveGame(netMsg(why)); },
+  owner(pid) {
+    if (pid === world.me) toast('👑 Du bist jetzt <b>Raumchef</b> und kannst Bots einstellen und Spieler entfernen.');
+    if (current === 'pause') buildPause();
+  },
+  notice(kind) {
+    if (kind === 'reconnect') toast('📡 Verbindung unterbrochen – verbinde neu …');
+    else if (kind === 'back') toast('✅ Wieder verbunden');
+  },
 };
 
+async function startServerRoom(opts) {
+  $('conn-title').textContent = 'Raum wird erstellt …'; $('conn-msg').textContent = '';
+  show('connect');
+  stopDemo(); world.reset();
+  const s = new ServerSession('create', { ...opts }, profile(), handlers);
+  pending = s; session = s;
+  try {
+    await s.start();
+    if (s.cancelled) return;
+    pending = null; enterGame();
+    banner(`Raum ${s.code}<small>Teile den Code mit deinen Freunden (Menü ☰)</small>`);
+  } catch (err) {
+    if (s.cancelled) return;
+    pending = null; session = null;
+    startDemo(); show('setup'); toast(esc(netMsg(err.message === 'error' || err.message === 'timeout' ? 'nosrv' : err.message)));
+  }
+}
+
 function startHost(opts, online) {
+  if (online && serverMode) { startServerRoom(opts); return; }
   stopDemo(); world.reset();
   session = new HostSession(opts, profile(), handlers);
   session.start();
@@ -382,7 +417,12 @@ function buildPause() {
   const s = session; if (!s) return;
   const online = s.online && s.code;
   $('room-box').classList.toggle('hidden', !online);
-  if (online) { $('room-code').textContent = s.code; $('room-note').textContent = s.isHost ? 'Mitspieler öffnen dieselbe Seite, tippen auf „Beitreten“ und geben den Code ein. Bleib im Spiel: Wenn du die Seite schließt, endet die Partie für alle.' : `Verbunden · Ping ${s.ping} ms`; }
+  if (online) {
+    $('room-code').textContent = s.code;
+    $('room-note').textContent = s.isServer
+      ? `Mitspieler öffnen dieselbe Seite, tippen auf „Beitreten“ und geben den Code ein. Die Partie läuft auf dem Server weiter, auch wenn du gehst. · Ping ${s.ping} ms`
+      : s.isHost ? 'Mitspieler öffnen dieselbe Seite, tippen auf „Beitreten“ und geben den Code ein. Bleib im Spiel: Wenn du die Seite schließt, endet die Partie für alle.' : `Verbunden · Ping ${s.ping} ms`;
+  }
   $('host-box').classList.toggle('hidden', !s.isHost);
   if (s.isHost) {
     const n = [...world.players.values()].filter((p) => p.bot).length;
@@ -483,7 +523,7 @@ $('help-body').innerHTML = `
 <li><b>Chaos-Modus:</b> Doppelter Sternenstaub, viele Gegenstände, schnelleres Verschmelzen.</li></ul>
 <h3>Flaggenjagd</h3><p>Berühre die gegnerische Flagge, um sie aufzunehmen, und trage sie in deine Basis. Punkten kannst du nur, wenn deine eigene Flagge zu Hause ist. Wirst du gefressen, bleibt die Flagge liegen – berühre deine eigene Flagge, um sie zurückzuholen. Das erste Team mit 5 Punkten gewinnt.</p>
 <h3>Tagesaufgaben</h3><p>Jeden Tag gibt es drei neue Aufgaben auf der Startseite. Jede bringt 150 XP.</p>
-<h3>Mehrspieler</h3><p>Einer tippt auf <b>Spiel hosten</b> und bekommt einen <b>Raumcode</b> mit 5 Zeichen. Alle anderen öffnen dieselbe Seite, tippen auf <b>Beitreten</b> und geben den Code ein – auch mitten in der laufenden Partie. Bis zu 12 Menschen spielen zusammen. Das Spiel läuft auf dem Handy des Hosts: Er sollte die Seite offen lassen.</p>`;
+<h3>Mehrspieler</h3><p>Einer tippt auf <b>Spiel hosten</b> und bekommt einen <b>Raumcode</b> mit 5 Zeichen. Alle anderen öffnen dieselbe Seite, tippen auf <b>Beitreten</b> und geben den Code ein – auch mitten in der laufenden Partie. Bis zu 12 Menschen spielen zusammen. Auf zehnkronen.com läuft die Partie auf dem Server: Der Ersteller darf gehen, und wer kurz die Verbindung verliert, steigt automatisch wieder ein.</p>`;
 
 // ---------- Spielknöpfe ----------
 function hold(btn, onDown, onUp) {
@@ -551,7 +591,7 @@ function updateHud(now) {
     if (info.ph === 'ended' && current === 'round') $('round-next').textContent = `Nächste Runde in ${info.tl} s`;
     if (info.ph === 'play' && info.tl >= 0 && info.tl <= 5 && info.tl !== lastTick) { lastTick = info.tl; sfx.tick(); }
   }
-  if (session && session.online && session.code && session.isHost) s += `<small>Raum ${session.code} · ${[...world.players.values()].filter((p) => !p.bot).length} Spieler</small>`;
+  if (session && session.online && session.code && (session.isHost || session.isServer)) s += `<small>Raum ${session.code} · ${[...world.players.values()].filter((p) => !p.bot).length} Spieler</small>`;
   $('status').innerHTML = s;
   // Masse
   if (world.myCells) {
@@ -625,6 +665,11 @@ document.addEventListener('gesturestart', (e) => e.preventDefault());
   };
 })();
 
+// Eigenen Spielserver erkennen (auf GitHub Pages gibt es keinen, dann PeerJS)
+detectServer().then((v) => { serverMode = v; if (current === 'home') refreshHome(); });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && session && session.wake) session.wake(); });
+window.addEventListener('online', () => { if (session && session.wake) session.wake(); });
+
 // Start
 startDemo(); show('home');
 try {
@@ -632,4 +677,4 @@ try {
   if (code.length === 5) { $('join-code').value = code; show('join'); }
 } catch (e) { /* ignore */ }
 requestAnimationFrame(frame);
-window.__sf = { world, store, get session() { return session; }, input, show };
+window.__sf = { world, store, get session() { return session; }, get serverMode() { return serverMode; }, input, show };

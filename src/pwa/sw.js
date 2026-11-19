@@ -8,6 +8,7 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== 'GET') return;
+  if (url.origin === location.origin && /\/(health|ws)$/.test(url.pathname)) return;
   const font = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
   if (url.origin !== location.origin && !font) return;
   if (font) {

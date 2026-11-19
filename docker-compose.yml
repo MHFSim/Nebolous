@@ -1,0 +1,14 @@
+# Für Coolify (Build Pack „Docker Compose“) oder direkt mit: docker compose up -d --build
+services:
+  sternfresser:
+    build: .
+    restart: unless-stopped
+    environment:
+      - PORT=3000
+      - BASE_PATH=/Sternfresser
+      - MAX_ROOMS=40
+    expose:
+      - "3000"
+    # Ohne Coolify/Reverse-Proxy zum Testen direkt erreichbar machen:
+    # ports:
+    #   - "3000:3000"

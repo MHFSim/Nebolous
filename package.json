@@ -7,7 +7,9 @@
   },
   "scripts": {
     "test": "node --test test/*.test.mjs",
-    "build": "node build.mjs"
+    "build": "node build.mjs",
+    "start": "node server/index.mjs",
+    "serve": "npm run build && node server/index.mjs"
   },
   "keywords": [],
   "author": "",
@@ -18,5 +20,11 @@
     "peerjs": "^1.5.5"
   },
   "type": "module",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "ws": "^8.23.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
 }

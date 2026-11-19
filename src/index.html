@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Sternfresser">
 <title>Sternfresser</title>
+<script>try{var p=location.pathname;if(/^https?:$/.test(location.protocol)&&window.self===window.top&&!/\/$/.test(p)&&!/\.[a-z0-9]+$/i.test(p))location.replace(p+"/"+location.search+location.hash)}catch(e){}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
 <style>/*CSS*/</style>
@@ -97,6 +98,9 @@
       <header><button class="back" data-go="home">‹</button><h2>Partie beitreten</h2></header>
       <div class="body center">
         <p>Gib den Raumcode ein, den dir der Host gezeigt hat. Du steigst direkt in die laufende Partie ein.</p>
+        <label class="jl" for="join-name">Dein Name</label>
+        <input id="join-name" class="jname" maxlength="14" autocomplete="off" autocapitalize="off" spellcheck="false">
+        <label class="jl" for="join-code">Raumcode</label>
         <input id="join-code" class="code" maxlength="5" placeholder="•••••" autocomplete="off" autocapitalize="characters" spellcheck="false">
         <p id="join-msg" class="note"></p>
       </div>

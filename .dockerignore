@@ -1,0 +1,6 @@
+node_modules
+dist
+.git
+.github
+*.zip
+test/e2e_multiplayer.py

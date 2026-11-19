@@ -284,3 +284,128 @@ export class ClientSession {
   }
   close() { this.shutdown(); }
 }
+
+// ---------- Eigener Spielserver (WebSocket) ----------
+export function serverUrl() {
+  const u = new URL('ws', location.href);
+  u.protocol = u.protocol === 'https:' ? 'wss:' : 'ws:';
+  u.search = ''; u.hash = '';
+  return u.href;
+}
+export async function detectServer() {
+  if (!/^https?:$/.test(location.protocol) || typeof WebSocket !== 'function') return false;
+  try {
+    const ctl = typeof AbortController === 'function' ? new AbortController() : null;
+    const timer = setTimeout(() => ctl && ctl.abort(), 4000);
+    const r = await fetch('health', { cache: 'no-store', signal: ctl ? ctl.signal : undefined });
+    clearTimeout(timer);
+    if (!r.ok) return false;
+    const j = await r.json();
+    return !!(j && j.sternfresser);
+  } catch (e) { return false; }
+}
+
+export class ServerSession {
+  // kind: 'create' (arg = Optionen) oder 'join' (arg = Raumcode)
+  constructor(kind, arg, profile, h) {
+    this.kind = kind; this.arg = arg; this.profile = profile; this.h = h;
+    this.isServer = true; this.online = true; this.code = kind === 'join' ? arg : '';
+    this.ping = 0; this.closed = false; this.pid = 0; this.owner = 0; this.key = '';
+    this.settled = false; this.welcomed = false; this.retries = 0; this.retryStart = 0;
+  }
+  get isHost() { return !!this.pid && this.owner === this.pid; }
+
+  start() {
+    return new Promise((resolve, reject) => {
+      this._resolve = resolve; this._reject = reject;
+      this.timer = setTimeout(() => this.fail('timeout'), 12000);
+      this.connect(false);
+    });
+  }
+  fail(why) {
+    if (this.settled) return;
+    this.settled = true; clearTimeout(this.timer); this.shutdown(); this._reject(new Error(why));
+  }
+
+  connect(resume) {
+    let ws;
+    try { ws = new WebSocket(serverUrl()); } catch (e) { if (resume) this.retry(); else this.fail('nonet'); return; }
+    ws.binaryType = 'arraybuffer';
+    this.ws = ws;
+    ws.onopen = () => {
+      const p = this.profile;
+      let m;
+      if (resume) m = { t: 'resume', v: VERSION, code: this.code, key: this.key };
+      else if (this.kind === 'create') m = { t: 'create', v: VERSION, opts: this.arg, name: p.name, skin: p.skin, hue: p.hue };
+      else m = { t: 'hello', v: VERSION, code: this.code, name: p.name, skin: p.skin, hue: p.hue };
+      ws.send(JSON.stringify(m));
+    };
+    ws.onmessage = (ev) => { if (this.ws === ws) this.onData(ev.data); };
+    ws.onclose = () => {
+      if (this.ws !== ws || this.closed) return;
+      if (!this.settled) this.fail('error'); else this.retry();
+    };
+  }
+
+  // Nach Verbindungsabbruch (z. B. App kurz im Hintergrund) still wieder einsteigen
+  retry() {
+    if (this.closed) return;
+    this.welcomed = false;
+    if (!this.retryStart) { this.retryStart = performance.now(); this.retries = 0; if (this.h.notice) this.h.notice('reconnect'); }
+    if (performance.now() - this.retryStart > 40000) { this.end('lost'); return; }
+    clearTimeout(this.rt);
+    this.rt = setTimeout(() => { if (!this.closed) this.connect(true); }, Math.min(4000, 400 * (1 + this.retries++)));
+  }
+  wake() { if (this.settled && !this.closed && (!this.ws || this.ws.readyState > 1)) { clearTimeout(this.rt); this.connect(true); } }
+
+  onData(data) {
+    if (typeof data !== 'string') {
+      if (!this.welcomed || !(data instanceof ArrayBuffer)) return;
+      const type = new Uint8Array(data)[0];
+      try {
+        if (type === MSG_SNAP) this.h.snap(decodeSnapshot(data));
+        else if (type === MSG_DOTS) this.h.dots(decodeDots(data));
+      } catch (e) { /* fehlerhaftes Paket überspringen */ }
+      return;
+    }
+    let m; try { m = JSON.parse(data); } catch (e) { return; }
+    switch (m.t) {
+      case 'welcome': {
+        const again = this.settled;
+        this.welcomed = true; this.pid = m.pid; this.key = m.key; this.owner = m.owner; this.code = m.code;
+        this.h.welcome({ pid: m.pid, opts: m.opts, w: m.w, h: m.h, players: m.players, host: false, code: m.code, worms: m.worms || [] });
+        if (m.info) this.h.info(m.info);
+        if (this.retryStart) { this.retryStart = 0; if (this.h.notice) this.h.notice('back'); }
+        if (!this.pingTimer) this.pingTimer = setInterval(() => this.sendJson({ t: 'ping', ts: performance.now() }), 2000);
+        if (!again) { this.settled = true; clearTimeout(this.timer); this._resolve(); }
+        break;
+      }
+      case 'bye':
+        if (!this.settled) this.fail(m.why);
+        else this.end(m.why === 'expired' ? 'lost' : m.why);
+        break;
+      case 'owner': this.owner = m.pid; if (this.h.owner) this.h.owner(m.pid); break;
+      case 'ev': this.h.events(m.e); break;
+      case 'i': this.h.info(m.i); break;
+      case 'players': this.h.players(m.p); break;
+      case 'pong': this.ping = Math.round(performance.now() - m.ts); break;
+    }
+  }
+
+  sendJson(o) { if (this.ws && this.ws.readyState === 1) { try { this.ws.send(JSON.stringify(o)); } catch (e) { /* ignore */ } } }
+  input(ax, ay, eject) { if (this.welcomed && this.ws && this.ws.readyState === 1) { try { this.ws.send(encodeInput(ax, ay, eject)); } catch (e) { /* ignore */ } } }
+  split() { this.sendJson({ t: 'split' }); }
+  item() { this.sendJson({ t: 'item' }); }
+  spawn() { this.sendJson({ t: 'spawn' }); }
+  emote(n) { this.sendJson({ t: 'emote', n }); }
+  kick(pid) { this.sendJson({ t: 'kick', pid }); }
+  setBots(n) { this.sendJson({ t: 'bots', n }); }
+
+  end(why) { if (this.closed) return; this.shutdown(); this.h.close(why); }
+  shutdown() {
+    this.closed = true;
+    clearInterval(this.pingTimer); clearTimeout(this.rt); clearTimeout(this.timer);
+    try { if (this.ws) this.ws.close(); } catch (e) { /* ignore */ }
+  }
+  close() { this.sendJson({ t: 'leave' }); this.shutdown(); }
+}
