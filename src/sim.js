@@ -1,6 +1,6 @@
 // Host-autoritative Spielsimulation. Läuft ohne DOM (auch in Node für Tests).
 import {
-  DT, MAPS, SOCCER_MAP, GOAL_HALF, DEFAULT_OPTS, START_MASS, MIN_SPLIT_MASS, MIN_EJECT_MASS, EJECT_COST,
+  DT, MAPS, SOCCER_MAP, GOAL_HALF, CTF_MAP, CTF_BASE, CTF_WIN, DEFAULT_OPTS, START_MASS, MIN_SPLIT_MASS, MIN_EJECT_MASS, EJECT_COST,
   EJECT_MASS, MAX_CELL_MASS, EAT_RATIO, MAX_PLAYERS, massToRadius, radiusToMass, baseSpeed, viewWidth,
   TEAM_COLORS, ITEMS, BOT_NAMES,
 } from './config.js';
@@ -22,13 +22,13 @@ const MAX_PELLETS = 500;
 export function normalizeOpts(o) {
   const opts = { ...DEFAULT_OPTS, ...(o || {}) };
   if (!MAPS[opts.map]) opts.map = 'mittel';
-  if (!['ffa', 'teams', 'royale', 'soccer'].includes(opts.mode)) opts.mode = 'ffa';
+  if (!['ffa', 'teams', 'royale', 'soccer', 'ctf'].includes(opts.mode)) opts.mode = 'ffa';
   opts.bots = Math.max(0, Math.min(28, opts.bots | 0));
   opts.botLevel = Math.max(1, Math.min(3, opts.botLevel | 0));
   opts.maxCells = [8, 16, 32].includes(opts.maxCells) ? opts.maxCells : 16;
   opts.teams = Math.max(2, Math.min(4, opts.teams | 0));
   opts.roundTime = Math.max(0, Math.min(30, +opts.roundTime || 0));
-  if (opts.mode === 'soccer') { opts.teams = 2; if (!opts.roundTime) opts.roundTime = 5; }
+  if (opts.mode === 'soccer' || opts.mode === 'ctf') { opts.teams = 2; if (!opts.roundTime) opts.roundTime = 5; }
   if (opts.mode === 'royale') opts.roundTime = 0;
   opts.mayhem = !!opts.mayhem; opts.items = !!opts.items;
   return opts;
@@ -38,7 +38,7 @@ export class Sim {
   constructor(opts, seed = (Date.now() & 0x7fffffff)) {
     this.opts = normalizeOpts(opts);
     const o = this.opts;
-    const map = o.mode === 'soccer' ? SOCCER_MAP : MAPS[o.map];
+    const map = o.mode === 'soccer' ? SOCCER_MAP : o.mode === 'ctf' ? CTF_MAP : MAPS[o.map];
     this.w = map.w; this.h = map.h;
     this.rng = mulberry32(seed);
     this.tick = 0; this.time = 0;
@@ -52,6 +52,24 @@ export class Sim {
     this.zone = null;
     this.results = null;
     this.botSeq = 0;
+    this.flags = null;
+    if (o.mode === 'ctf') {
+      this.flags = [0, 1].map((team) => {
+        const hx = team === 0 ? CTF_BASE : this.w - CTF_BASE, hy = this.h / 2;
+        return { team, hx, hy, x: hx, y: hy, carrier: 0, home: true, dropAt: 0 };
+      });
+    }
+    // Wurmlöcher: Paare, Index i gehört zu i ^ 1
+    this.worms = [];
+    const pairs = o.mode === 'soccer' || o.mode === 'ctf' ? 0 : Math.max(1, Math.round((2 * this.w * this.h) / 36e6));
+    for (let i = 0; i < pairs * 2; i++) {
+      let x = 0, y = 0;
+      for (let t = 0; t < 30; t++) {
+        x = this.rand(450, this.w - 450); y = this.rand(450, this.h - 450);
+        if (!this.worms.some((q) => Math.hypot(q.x - x, q.y - y) < 1100)) break;
+      }
+      this.worms.push({ x, y });
+    }
 
     // Sternenstaub
     const density = o.mode === 'soccer' ? 105 : o.map === 'gross' ? 100 : 90;
@@ -115,6 +133,8 @@ export class Sim {
       for (const c of this.cells) { const d = Math.hypot(c.x - x, c.y - y); if (d < c.r + r + 120) { ok = false; break; } }
       if (ok && this.ball && Math.hypot(this.ball.x - x, this.ball.y - y) < 500) ok = false;
       if (ok) for (const h of this.holes) if (Math.hypot(h.x - x, h.y - y) < 420) { ok = false; break; }
+      if (ok) for (const q of this.worms) if (Math.hypot(q.x - x, q.y - y) < 320) { ok = false; break; }
+      if (ok && this.flags) for (const f of this.flags) if (Math.hypot(f.hx - x, f.hy - y) < 600) { ok = false; break; }
       if (!ok) continue;
       this.holes.push({ id: this.newId(), x, y, vx: 0, vy: 0, r });
       return;
@@ -138,7 +158,7 @@ export class Sim {
     while (this.players.has(pid)) pid++;
     const o = this.opts;
     let team = 0;
-    if (o.mode === 'teams' || o.mode === 'soccer') {
+    if (this.teamMode()) {
       const n = o.teams, cnt = new Array(n).fill(0);
       for (const p of this.players.values()) cnt[p.team]++;
       team = 0;
@@ -148,12 +168,12 @@ export class Sim {
       pid, name: String(info.name || 'Blob').slice(0, 16), skin: info.skin | 0,
       hue: ((info.hue | 0) % 360 + 360) % 360, team, bot: info.bot || null,
       cells: [], ax: 0, ay: 0, dx: 1, dy: 0, ejectHeld: false, ejectCd: 0, splitQ: 0, item: 0,
-      fx: { turbo: 0, shield: 0, magnet: 0, frozen: 0, ghost: 0 }, prot: 0,
+      fx: { turbo: 0, shield: 0, magnet: 0, frozen: 0, ghost: 0, double: 0 }, hasFlag: false, prot: 0,
       alive: false, out: false, respawnAt: 0, wantSpawn: false,
       score: 0, best: 0, kills: 0, deaths: 0, goals: 0, place: 0,
       cx: this.w / 2, cy: this.h / 2, totalR: 60, spread: 0, viewW: 2400, lastKiller: 0, mergeSecs: 0,
     };
-    if (o.mode === 'teams' || o.mode === 'soccer') p.hue = TEAM_COLORS[team].hue;
+    if (this.teamMode()) p.hue = TEAM_COLORS[team].hue;
     this.players.set(pid, p);
     if (o.mode === 'royale' && this.phase === 'play') { p.out = true; } else this.spawn(p);
     this.events.push({ k: 'join', pid });
@@ -166,7 +186,7 @@ export class Sim {
     for (let i = 0; i < BOT_NAMES.length && taken.has(name); i++) name = BOT_NAMES[(this.botSeq + i) % BOT_NAMES.length];
     this.botSeq++;
     return this.addPlayer({
-      name, skin: (this.rng() * 30) | 0, hue: (this.rng() * 360) | 0,
+      name, skin: (this.rng() * 44) | 0, hue: (this.rng() * 360) | 0,
       bot: { level: this.opts.botLevel, next: this.rng() * 0.5, wx: 0, wy: 0, wt: 0, splitCd: 0, role: this.botSeq % 3 },
     });
   }
@@ -190,7 +210,7 @@ export class Sim {
     let best = null, bestD = -1;
     for (let t = 0; t < 14; t++) {
       let x = this.rand(150, this.w - 150), y = this.rand(150, this.h - 150);
-      if (o.mode === 'soccer') x = p.team === 0 ? this.rand(150, this.w * 0.42) : this.rand(this.w * 0.58, this.w - 150);
+      if (o.mode === 'soccer' || o.mode === 'ctf') x = p.team === 0 ? this.rand(150, this.w * 0.42) : this.rand(this.w * 0.58, this.w - 150);
       if (this.zone) {
         const a = this.rng() * 6.283, d = Math.sqrt(this.rng()) * this.zone.r * 0.85;
         x = Math.max(60, Math.min(this.w - 60, this.zone.x + Math.cos(a) * d));
@@ -206,7 +226,7 @@ export class Sim {
     const c = this.makeCell(p, best.x, best.y, m);
     c.mergeAt = 0;
     p.alive = true; p.out = false; p.prot = this.time + 3; p.item = 0; p.wantSpawn = false;
-    p.fx.turbo = p.fx.shield = p.fx.magnet = p.fx.frozen = p.fx.ghost = 0;
+    p.fx.turbo = p.fx.shield = p.fx.magnet = p.fx.frozen = p.fx.ghost = p.fx.double = 0; p.hasFlag = false;
     p.cx = c.x; p.cy = c.y; p.totalR = c.r; p.spread = 0; p.score = m; p.best = m; p.lastKiller = 0;
     p.viewW = viewWidth(p.totalR);
     this.events.push({ k: 'spawn', to: p.pid });
@@ -215,7 +235,7 @@ export class Sim {
   makeCell(p, x, y, m) {
     const c = {
       id: this.newId(), pid: p.pid, p, x, y, m, r: massToRadius(m), vx: 0, vy: 0, mvx: 0, mvy: 0,
-      mergeAt: 0, launch: 0, hidden: false, dead: false,
+      mergeAt: 0, launch: 0, tpAt: 0, hidden: false, dead: false,
     };
     p.cells.push(c); this.cells.push(c);
     return c;
@@ -284,6 +304,8 @@ export class Sim {
     const type = p.item, t = this.time; p.item = 0;
     const enemy = (q) => q !== p && q.alive && !(this.teamMode() && q.team === p.team);
     switch (type) {
+      case 9: for (const c of p.cells) { c.vx += p.dx * 2700; c.vy += p.dy * 2700; c.launch = t + 0.3; } break;
+      case 10: p.fx.double = t + 12; break;
       case 1: p.fx.turbo = t + 6; break;
       case 2: p.fx.shield = t + 5; break;
       case 3: for (const c of p.cells) c.mergeAt = 0; break;
@@ -331,7 +353,7 @@ export class Sim {
     return true;
   }
 
-  teamMode() { return this.opts.mode === 'teams' || this.opts.mode === 'soccer'; }
+  teamMode() { const m = this.opts.mode; return m === 'teams' || m === 'soccer' || m === 'ctf'; }
 
   // ---------- Hauptschritt ----------
   step() {
@@ -370,6 +392,7 @@ export class Sim {
       let mult = mh;
       if (p.fx.turbo > t) mult *= 1.6;
       if (p.fx.frozen > t) mult *= 0.15;
+      if (p.hasFlag) mult *= 0.86;
       const reach = p.spread + 320;
       const tx = p.cx + p.ax * reach, ty = p.cy + p.ay * reach;
       const multi = p.cells.length > 1;
@@ -463,6 +486,21 @@ export class Sim {
     }
     if (this.holes.some((h) => h.dead)) this.holes = this.holes.filter((h) => !h.dead);
 
+    // Wurmlöcher: kleine Zellen springen zum Partner
+    for (let wi = 0; wi < this.worms.length; wi++) {
+      const wm = this.worms[wi], to = this.worms[wi ^ 1];
+      for (let i = 0; i < cells.length; i++) {
+        const c = cells[i];
+        if (c.dead || c.r > 105 || c.tpAt > t) continue;
+        const dx = c.x - wm.x, dy = c.y - wm.y;
+        if (dx * dx + dy * dy > 3025) continue;
+        const sp = Math.hypot(c.mvx, c.mvy);
+        const ux = sp > 1 ? c.mvx / sp : 1, uy = sp > 1 ? c.mvy / sp : 0;
+        c.x = to.x + ux * 75; c.y = to.y + uy * 75; c.tpAt = t + 2.5;
+        this.events.push({ k: 'warp', pid: c.pid, x: wm.x, y: wm.y, x2: to.x, y2: to.y });
+      }
+    }
+
     // Zellen untereinander
     cells.sort((a, b) => b.m - a.m);
     for (let i = 0; i < cells.length; i++) {
@@ -531,7 +569,7 @@ export class Sim {
           }
         }
       }
-      if (gain) { c.m = Math.min(MAX_CELL_MASS, c.m + gain); c.r = massToRadius(c.m); }
+      if (gain) { if (p.fx.double > t) gain *= 2; c.m = Math.min(MAX_CELL_MASS, c.m + gain); c.r = massToRadius(c.m); }
     }
     for (const q of this.pellets) {
       if (q.dead) continue;
@@ -744,7 +782,7 @@ export class Sim {
       rows = list.map((p) => ({ pid: p.pid, name: p.name, team: p.team, score: Math.round(p.alive ? p.score : 0), kills: p.kills, goals: p.goals }));
       rows.sort((a, b) => b.score - a.score);
       rows.forEach((r, i) => (r.place = i + 1));
-      if (o.mode === 'soccer') winTeam = this.teamGoals[0] === this.teamGoals[1] ? -1 : (this.teamGoals[0] > this.teamGoals[1] ? 0 : 1);
+      if (o.mode === 'soccer' || o.mode === 'ctf') winTeam = this.teamGoals[0] === this.teamGoals[1] ? -1 : (this.teamGoals[0] > this.teamGoals[1] ? 0 : 1);
       else if (o.mode === 'teams') { winTeam = 0; for (let i = 1; i < o.teams; i++) if (this.teamScores[i] > this.teamScores[winTeam]) winTeam = i; }
     }
     this.results = {
@@ -762,6 +800,7 @@ export class Sim {
     this.cells = []; this.pellets = [];
     this.zone = null; this.results = null;
     this.teamGoals = [0, 0];
+    if (this.flags) for (const f of this.flags) { f.x = f.hx; f.y = f.hy; f.carrier = 0; f.home = true; }
     if (this.ball) { this.ball.x = this.w / 2; this.ball.y = this.h / 2; this.ball.vx = this.ball.vy = 0; this.ball.hold = this.time + 2; }
     this.phase = o.mode === 'royale' ? 'warmup' : 'play';
     this.phaseEnd = o.mode === 'royale' ? this.time + 15 : 0;
@@ -775,6 +814,7 @@ export class Sim {
 
   modeRules() {
     const t = this.time;
+    if (this.flags) return this.ctfRules();
     if (this.opts.mode !== 'royale' || this.phase !== 'play' || !this.zone) return;
     const z = this.zone;
     const f = Math.max(0, Math.min(1, (t - z.t0) / (z.t1 - z.t0)));
@@ -795,6 +835,45 @@ export class Sim {
     if (alive <= 1) {
       if (last) last.place = 1;
       this.endRound(last ? last.pid : 0);
+    }
+  }
+
+  ctfRules() {
+    const t = this.time;
+    for (const p of this.players.values()) p.hasFlag = false;
+    for (const f of this.flags) {
+      if (f.carrier) {
+        const p = this.players.get(f.carrier);
+        if (!p || !p.alive || p.team === f.team) {
+          f.carrier = 0; f.dropAt = t + 12;
+          this.events.push({ k: 'flag', a: 'drop', team: f.team, pid: p ? p.pid : 0 });
+          continue;
+        }
+        p.hasFlag = true; f.x = p.cx; f.y = p.cy;
+        const own = this.flags[p.team];
+        if (own.home && Math.hypot(p.cx - own.hx, p.cy - own.hy) < 230) {
+          this.teamGoals[p.team]++; p.goals++;
+          f.carrier = 0; f.home = true; f.x = f.hx; f.y = f.hy; p.hasFlag = false;
+          this.events.push({ k: 'cap', team: p.team, pid: p.pid, x: own.hx, y: own.hy });
+          if (this.teamGoals[p.team] >= CTF_WIN) { this.endRound(); return; }
+        }
+        continue;
+      }
+      for (const c of this.cells) {
+        if (c.dead) continue;
+        const R = c.r + 45, dx = c.x - f.x, dy = c.y - f.y;
+        if (dx * dx + dy * dy > R * R) continue;
+        if (c.p.team !== f.team) {
+          f.carrier = c.pid; f.home = false; c.p.hasFlag = true; c.p.prot = 0;
+          this.events.push({ k: 'flag', a: 'take', team: f.team, pid: c.pid });
+          break;
+        } else if (!f.home) {
+          f.home = true; f.x = f.hx; f.y = f.hy;
+          this.events.push({ k: 'flag', a: 'ret', team: f.team, pid: c.pid });
+          break;
+        }
+      }
+      if (!f.home && !f.carrier && t > f.dropAt) { f.home = true; f.x = f.hx; f.y = f.hy; this.events.push({ k: 'flag', a: 'ret', team: f.team, pid: 0 }); }
     }
   }
 

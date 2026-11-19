@@ -261,3 +261,47 @@ test('Spieler entfernen räumt auf, volle Partie ersetzt Bot', () => {
   assert.equal(s.players.size, 39);
   assert.ok(!s.cells.some((c) => c.pid === x));
 });
+
+test('Flaggenjagd: Flagge nehmen, fallen lassen, zurückbringen, punkten', () => {
+  const s = mk({ mode: 'ctf' }); clearHoles(s);
+  const a = s.addPlayer({}), b = s.addPlayer({});
+  const pa = s.players.get(a), pb = s.players.get(b);
+  assert.equal(pa.team, 0); assert.equal(pb.team, 1);
+  const f1 = s.flags[1], f0 = s.flags[0];
+  setCell(pb.cells[0], 2600, 300, 30);
+  setCell(pa.cells[0], f1.hx, f1.hy, 100); s.step();
+  assert.equal(f1.carrier, a); assert.equal(pa.hasFlag, true);
+  // Träger stirbt → Flagge liegt, Verteidiger bringt sie zurück
+  pa.prot = 0; setCell(pb.cells[0], pa.cells[0].x + 5, pa.cells[0].y, 900); s.step(); s.step();
+  assert.equal(pa.alive, false); assert.equal(f1.carrier, 0);
+  run(s, 0.2); assert.equal(f1.home, true);
+  // Neuer Versuch: holen und zur eigenen Basis tragen
+  s.requestSpawn(a); run(s, 2);
+  setCell(pb.cells[0], 2600, 300, 30);
+  setCell(pa.cells[0], f1.hx, f1.hy, 100); s.step();
+  assert.equal(f1.carrier, a);
+  setCell(pa.cells[0], f0.hx + 20, f0.hy, 100); s.events.length = 0; s.step(); s.step();
+  assert.deepEqual(s.teamGoals, [1, 0]);
+  assert.ok(s.events.some((e) => e.k === 'cap' && e.pid === a));
+  assert.equal(f1.home, true);
+  const snap = decodeSnapshot(encodeSnapshot(s, pa));
+  assert.equal(snap.flags.length, 2); assert.ok(snap.flags[1].home);
+  // Bots spielen den Modus stabil
+  const g = new Sim({ mode: 'ctf', bots: 10, botLevel: 3 }, 4);
+  run(g, 120);
+  console.log('   CTF-Bots nach 2 Minuten:', g.teamGoals.join(':'));
+});
+
+test('Wurmloch teleportiert kleine Zellen, neue Items wirken', () => {
+  const s = mk(); clearHoles(s);
+  assert.ok(s.worms.length >= 2 && s.worms.length % 2 === 0);
+  const a = s.addPlayer({}); const p = s.players.get(a);
+  const w0 = s.worms[0], w1 = s.worms[1];
+  setCell(p.cells[0], w0.x, w0.y, 50); s.step();
+  assert.ok(Math.hypot(p.cells[0].x - w1.x, p.cells[0].y - w1.y) < 120);
+  assert.ok(s.events.some((e) => e.k === 'warp'));
+  setCell(p.cells[0], 2000, 2000, 100); s.setInput(a, 1, 0, false); s.step();
+  p.item = 9; s.useItem(a); const x0 = p.cells[0].x; run(s, 1);
+  assert.ok(p.cells[0].x - x0 > 500, 'Sprung: ' + (p.cells[0].x - x0));
+  p.item = 10; s.useItem(a); assert.ok(p.fx.double > s.time);
+});

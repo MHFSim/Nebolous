@@ -39,7 +39,7 @@ export function encodeSnapshot(sim, p) {
   let o = 0;
   dv.setUint8(o, MSG_SNAP); o += 1;
   dv.setUint32(o, sim.tick); o += 4;
-  dv.setUint8(o, (sim.ball ? 1 : 0) | (sim.zone ? 2 : 0) | (p.alive ? 4 : 0)); o += 1;
+  dv.setUint8(o, (sim.ball ? 1 : 0) | (sim.zone ? 2 : 0) | (p.alive ? 4 : 0) | (sim.flags ? 8 : 0)); o += 1;
   dv.setUint8(o, p.item); o += 1;
   dv.setUint8(o, Math.min(255, p.mergeSecs)); o += 1;
   dv.setUint16(o, P(p.cx)); o += 2; dv.setUint16(o, P(p.cy)); o += 2;
@@ -94,6 +94,7 @@ export function encodeSnapshot(sim, p) {
 
   if (sim.ball) { dv.setUint16(o, P(sim.ball.x)); dv.setUint16(o + 2, P(sim.ball.y)); dv.setUint16(o + 4, Rr(sim.ball.r)); o += 6; }
   if (sim.zone) { dv.setUint16(o, P(sim.zone.x)); dv.setUint16(o + 2, P(sim.zone.y)); dv.setUint16(o + 4, Math.min(65535, Math.round(sim.zone.r))); o += 6; }
+  if (sim.flags) for (const f of sim.flags) { dv.setUint16(o, P(f.x)); dv.setUint16(o + 2, P(f.y)); dv.setUint8(o + 4, f.home ? 1 : 0); dv.setUint8(o + 5, f.carrier); o += 6; }
   return buf.slice(0, o);
 }
 
@@ -127,6 +128,7 @@ export function decodeSnapshot(ab) {
   s.items = new Array(n);
   for (let i = 0; i < n; i++) { s.items[i] = { id: d.getUint16(o), x: d.getUint16(o + 2) / POS_SCALE, y: d.getUint16(o + 4) / POS_SCALE, type: d.getUint8(o + 6) }; o += 7; }
   if (fl & 1) { s.ball = { x: d.getUint16(o) / POS_SCALE, y: d.getUint16(o + 2) / POS_SCALE, r: d.getUint16(o + 4) / RAD_SCALE }; o += 6; }
-  if (fl & 2) { s.zone = { x: d.getUint16(o) / POS_SCALE, y: d.getUint16(o + 4 - 2) / POS_SCALE, r: d.getUint16(o + 4) }; o += 6; }
+  if (fl & 2) { s.zone = { x: d.getUint16(o) / POS_SCALE, y: d.getUint16(o + 2) / POS_SCALE, r: d.getUint16(o + 4) }; o += 6; }
+  if (fl & 8) { s.flags = []; for (let i = 0; i < 2; i++) { s.flags.push({ x: d.getUint16(o) / POS_SCALE, y: d.getUint16(o + 2) / POS_SCALE, home: !!d.getUint8(o + 4), carrier: d.getUint8(o + 5) }); o += 6; } }
   return s;
 }

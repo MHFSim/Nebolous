@@ -19,6 +19,7 @@ async def main():
         await host.wait_for_function("()=>window.__sf.session && window.__sf.session.code", timeout=15000)
         code = await host.evaluate("()=>window.__sf.session.code")
         print("code", code)
+        await host.evaluate("()=>{const s=window.__sf.session.sim;s.players.get(window.__sf.world.me).prot=1e9}")
         await host.wait_for_timeout(3000)  # laufende Partie
         cl = await mk("Gasti", 390, 844)
         await cl.click("#go-join"); await cl.fill("#join-code", code.lower()); await cl.dispatch_event("#join-code","input")

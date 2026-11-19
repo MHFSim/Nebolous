@@ -7,8 +7,8 @@ import { HostSession, ClientSession, cleanCode, netAvailable } from './net.js';
 import { encodeSnapshot, decodeSnapshot, encodeDots, decodeDots } from './proto.js';
 import { SKINS, skinTexture } from './skins.js';
 import { sfx, setSound, unlockAudio } from './audio.js';
-import { store, loadStore, saveStore, level, unlock, ACHIEVEMENTS, persistent } from './store.js';
-import { MODES, MAPS, DEFAULT_OPTS, ITEMS, EMOTES, TEAM_COLORS, xpForLevel, MIN_EJECT_MASS } from './config.js';
+import { store, loadStore, saveStore, level, unlock, ACHIEVEMENTS, persistent, dailyMissions, missionProgress, allMissionsDone, MISSION_XP } from './store.js';
+import { MODES, MAPS, DEFAULT_OPTS, ITEMS, EMOTES, TEAM_COLORS, xpForLevel, MIN_EJECT_MASS, isTeamMode, CTF_WIN } from './config.js';
 
 loadStore();
 const $ = (id) => document.getElementById(id);
@@ -26,7 +26,7 @@ let session = null, demo = null, inGame = false, pending = null;
 let hostOpts = { ...DEFAULT_OPTS, ...(store.host || {}) };
 let setupOnline = false, settingsFrom = 'home';
 const life = { active: false, start: 0, best: 0, kills: 0, bonus: 0 };
-let lastDeath = null, roundShown = false, watchMode = false, wasTop = false;
+let lastDeath = null, roundShown = false, watchMode = false, wasTop = false, streak = 0, streakAt = 0;
 
 // ---------- Bildschirme ----------
 const SCREENS = ['home', 'setup', 'join', 'skins', 'profile', 'settings', 'help', 'connect', 'pause', 'death', 'round'];
@@ -57,6 +57,14 @@ function seg(el, options, get, set) {
     el.appendChild(b);
   }
 }
+function mission(t, v) {
+  for (const text of missionProgress(t, v)) { toast(`✅ Tagesaufgabe geschafft: <b>${esc(text)}</b> +${MISSION_XP} XP`, 'ach'); sfx.ach(); if (allMissionsDone()) achieve('daily'); }
+}
+function buzz(ms) { try { if (store.settings.vibrate && navigator.vibrate) navigator.vibrate(ms); } catch (e) { /* ignore */ } }
+function renderDaily() {
+  const list = dailyMissions(), done = list.filter((m) => m.done).length;
+  $('daily').innerHTML = `<div class="t"><span>Tagesaufgaben</span><b>${done}/3 · je ${MISSION_XP} XP</b></div>` + list.map((m) => `<div class="m${m.done ? ' done' : ''}"><span>${esc(m.text)}</span><b>${m.done ? '✓' : (m.t === 'top' ? '' : Math.floor(m.prog) + '/' + m.goal)}</b></div>`).join('');
+}
 function achieve(id) { const a = unlock(id); if (a) { toast(`${a.icon} Erfolg: <b>${esc(a.name)}</b>`, 'ach'); sfx.ach(); } }
 
 // ---------- Startseite ----------
@@ -72,6 +80,7 @@ function refreshHome() {
   $('name').value = store.name;
   drawSkinPreview($('skin-cv'), store.skin, store.hue);
   levelBar($('lvl-badge'), $('lvl-bar'));
+  renderDaily();
   const note = $('net-note');
   if (!netAvailable()) { note.classList.remove('hidden'); note.textContent = 'Mehrspieler ist in dieser Ansicht gesperrt. Solo mit Bots funktioniert.'; } else note.classList.add('hidden');
 }
@@ -84,16 +93,17 @@ $('go-host').onclick = () => { unlockAudio(); sfx.click(); setupOnline = true; o
 $('go-join').onclick = () => { unlockAudio(); sfx.click(); $('join-msg').textContent = ''; show('join'); setTimeout(() => $('join-code').focus(), 50); };
 
 // ---------- Spiel einrichten ----------
-const MODE_ICON = { ffa: '🪐', teams: '🤝', royale: '🏆', soccer: '⚽' };
+const MODE_ICON = { ffa: '🪐', teams: '🤝', royale: '🏆', soccer: '⚽', ctf: '🚩' };
+const timed = (m) => m === 'soccer' || m === 'ctf';
 function openSetup() {
   $('setup-title').textContent = setupOnline ? 'Spiel hosten' : 'Solo spielen';
   $('setup-start').textContent = setupOnline ? 'Raum öffnen und starten' : "Los geht's";
   const o = hostOpts;
   const vis = () => {
-    $('o-map-w').classList.toggle('hidden', o.mode === 'soccer');
+    $('o-map-w').classList.toggle('hidden', timed(o.mode));
     $('o-time-w').classList.toggle('hidden', o.mode === 'royale');
     $('o-teams-w').classList.toggle('hidden', o.mode !== 'teams');
-    seg($('o-time'), o.mode === 'soccer' ? [[3, '3 Min'], [5, '5 Min'], [10, '10 Min']] : [[0, 'Endlos'], [3, '3 Min'], [5, '5 Min'], [10, '10 Min']], () => (o.mode === 'soccer' && !o.roundTime ? 5 : o.roundTime), (v) => (o.roundTime = v));
+    seg($('o-time'), timed(o.mode) ? [[3, '3 Min'], [5, '5 Min'], [10, '10 Min']] : [[0, 'Endlos'], [3, '3 Min'], [5, '5 Min'], [10, '10 Min']], () => (timed(o.mode) && !o.roundTime ? 5 : o.roundTime), (v) => (o.roundTime = v));
   };
   const modes = $('o-mode'); modes.innerHTML = '';
   for (const [key, m] of Object.entries(MODES)) {
@@ -162,7 +172,7 @@ const profile = () => ({ name: store.name.trim() || 'Blob', skin: store.skin, hu
 let knownHumans = new Map();
 const handlers = {
   welcome(d) {
-    world.me = d.pid; world.opts = d.opts; world.w = d.w; world.h = d.h; world.setPlayers(d.players);
+    world.me = d.pid; world.opts = d.opts; world.w = d.w; world.h = d.h; world.setPlayers(d.players); world.worms = d.worms || [];
     knownHumans = new Map(d.players.filter((p) => !p[5]).map((p) => [p[0], p[1]]));
   },
   dots(d) { world.dots = d; },
@@ -228,6 +238,7 @@ function award() {
   const before = level();
   store.xp += xp;
   const st = store.stats;
+  mission('lives', 1); mission('time', t / 60);
   st.lives++; st.time += t; st.maxMass = Math.max(st.maxMass, Math.round(life.best));
   const after = level();
   if (after > before) {
@@ -250,14 +261,39 @@ function onEvent(e) {
       world.burst(e.x, e.y, 22, (world.players.get(e.victim) || { hue: 0 }).hue, 420, 6);
       if (e.killer === me && e.victim !== me) {
         life.kills++; store.stats.kills++; saveStore();
-        banner(`${esc(vn)} gefressen!`);
+        const nowT = performance.now();
+        streak = nowT - streakAt < 9000 ? streak + 1 : 1; streakAt = nowT;
+        const st = ['', '', 'Doppelt!', 'Dreifach!', 'Vierfach!', 'Fressrausch!'][Math.min(streak, 5)];
+        banner(st ? `${st}<small>${esc(vn)} gefressen</small>` : `${esc(vn)} gefressen!`);
+        if (streak >= 2) sfx.streak(); if (streak >= 3) achieve('streak3');
+        buzz(30); mission('kills', 1);
         achieve('meal'); if (store.stats.kills >= 10) achieve('k10'); if (store.stats.kills >= 100) achieve('k100'); if (life.kills >= 5) achieve('k5life');
       }
       if (e.victim === me) onDeath(e, kn);
       break;
     }
-    case 'eat': sfx.eat(); world.text(e.x, e.y, '+' + Math.round(e.m), 140, 26); world.burst(e.x, e.y, 12, 140, 300, 5); break;
-    case 'split': if (e.pid === me) sfx.split(); break;
+    case 'eat': sfx.eat(); world.text(e.x, e.y, '+' + Math.round(e.m), 140, 28); world.burst(e.x, e.y, 18, 140, 380, 6); world.ring(e.x, e.y, 10, 60 + Math.sqrt(e.m) * 9, 140, 420); world.shake = Math.max(world.shake, Math.min(7, 2 + e.m / 150)); break;
+    case 'split': if (e.pid === me) { sfx.split(); buzz(12); mission('splits', 1); world.ring(e.x, e.y, 10, 120, world.players.get(me) ? world.players.get(me).hue : 200, 300); } break;
+    case 'warp': {
+      world.ring(e.x, e.y, 90, 10, 170, 350); world.ring(e.x2, e.y2, 10, 150, 170, 450); world.burst(e.x2, e.y2, 16, 170, 380, 5);
+      if (e.pid === me) { sfx.warp(); achieve('warp'); buzz(20); }
+      break;
+    }
+    case 'flag': {
+      const t = TEAM_COLORS[e.team], who = e.pid ? world.playerName(e.pid) : '';
+      const col = `style="color:hsl(${t.hue} 90% 70%)"`;
+      if (e.a === 'take') { feed(`<b>${esc(who)}</b> hat die Flagge von <span ${col}>${t.name}</span>`); if (e.pid === me) { banner('Du hast die Flagge!<small>Bring sie zu deiner Basis</small>'); sfx.pick(); buzz(40); } else sfx.tick(); }
+      else if (e.a === 'drop') feed(`Flagge von <span ${col}>${t.name}</span> liegt am Boden`);
+      else feed(`Flagge von <span ${col}>${t.name}</span> ist zurück`);
+      break;
+    }
+    case 'cap': {
+      const t = TEAM_COLORS[e.team];
+      banner(`Punkt für ${t.name}!<small>${esc(world.playerName(e.pid))} hat die Flagge erobert</small>`);
+      sfx.goal(); world.burst(e.x, e.y, 50, t.hue, 800, 7); world.ring(e.x, e.y, 40, 500, t.hue, 700);
+      if (e.pid === me) { store.stats.flags++; life.bonus += 60; achieve('flag'); saveStore(); }
+      break;
+    }
     case 'burst':
       if (e.pid === me) { sfx.burst(); world.shake = 12; store.stats.bursts++; achieve('burst'); saveStore(); }
       break;
@@ -266,9 +302,10 @@ function onEvent(e) {
       const near = Math.hypot(e.x - world.cam.x, e.y - world.cam.y) < world.cam.viewW;
       if (near) { if (e.type === 8) sfx.nova(); else sfx.item(); }
       if (e.pid === me) {
+        mission('items', 1);
         const st = store.stats; st.items++;
         if (!st.itemTypes.includes(e.type)) st.itemTypes.push(e.type);
-        if (st.items >= 10) achieve('items10'); if (st.itemTypes.length >= 8) achieve('itemsAll');
+        if (st.items >= 10) achieve('items10'); if (st.itemTypes.length >= 10) achieve('itemsAll');
         saveStore();
       }
       break;
@@ -294,16 +331,16 @@ function onEvent(e) {
     case 'emote': world.emotes.set(e.pid, { n: e.n, t0: performance.now(), cell: 0 }); break;
     case 'spawn':
       life.active = true; life.start = performance.now(); life.best = 0; life.kills = 0; life.bonus = 0;
-      watchMode = false; $('b-respawn').classList.add('hidden');
+      watchMode = false; $('b-respawn').classList.add('hidden'); streak = 0;
       if (current === 'death') show(null);
-      sfx.spawn();
+      sfx.spawn(); world.ring(world.snapCx || world.cam.x, world.snapCy || world.cam.y, 200, 20, 190, 500);
       break;
   }
 }
 
 function onDeath(e, killerName) {
   sfx.death(); world.shake = 14;
-  try { if (store.settings.vibrate && navigator.vibrate) navigator.vibrate(120); } catch (err) { /* ignore */ }
+  buzz(120);
   store.stats.deaths++;
   const a = award() || { xp: 0, t: 0, best: 0, kills: 0 };
   lastDeath = a;
@@ -325,7 +362,7 @@ function showRound(r) {
   roundShown = true;
   const me = world.me, my = r.rows.find((x) => x.pid === me), myP = world.players.get(me);
   let title = 'Runde vorbei', sub = '', won = false;
-  if (r.mode === 'soccer') {
+  if (r.mode === 'soccer' || r.mode === 'ctf') {
     title = `${r.goals[0]} : ${r.goals[1]}`;
     sub = r.winTeam < 0 ? 'Unentschieden' : `Team ${TEAM_COLORS[r.winTeam].name} gewinnt`;
     won = myP && r.winTeam === myP.team;
@@ -335,7 +372,7 @@ function showRound(r) {
   }
   if (won) { sfx.win(); life.bonus += 150; store.stats.wins++; if (r.mode === 'royale') { store.stats.royaleWins++; achieve('royale'); } else achieve('round'); saveStore(); } else sfx.lose();
   $('round-title').textContent = title; $('round-sub').textContent = sub + (won ? ' – das bist du! +150 XP' : '');
-  $('round-table').innerHTML = r.rows.slice(0, 8).map((x) => `<div class="${x.pid === me ? 'me' : ''}"><em>${x.place}.</em><span>${esc(x.name)}</span><b>${r.mode === 'soccer' ? (x.goals || 0) + ' ⚽' : fmt(x.score)}</b></div>`).join('') + (my && my.place > 8 ? `<div class="me"><em>${my.place}.</em><span>${esc(my.name)}</span><b>${fmt(my.score)}</b></div>` : '');
+  $('round-table').innerHTML = r.rows.slice(0, 8).map((x) => `<div class="${x.pid === me ? 'me' : ''}"><em>${x.place}.</em><span>${esc(x.name)}</span><b>${r.mode === 'soccer' ? (x.goals || 0) + ' ⚽' : r.mode === 'ctf' ? (x.goals || 0) + ' 🚩' : fmt(x.score)}</b></div>`).join('') + (my && my.place > 8 ? `<div class="me"><em>${my.place}.</em><span>${esc(my.name)}</span><b>${fmt(my.score)}</b></div>` : '');
   award();
   show('round');
 }
@@ -384,7 +421,7 @@ function openSettings(from) {
   seg($('st-theme'), [['weltraum', 'Weltraum'], ['raster', 'Raster']], () => st.theme, (v) => { st.theme = v; saveStore(); });
   const bind = (id, key, fn) => { const el = $(id); el.checked = !!st[key]; el.onchange = () => { st[key] = el.checked; saveStore(); if (fn) fn(); }; };
   bind('st-sound', 'sound', () => { setSound(st.sound); unlockAudio(); sfx.click(); });
-  bind('st-names', 'showNames'); bind('st-mass', 'showMass'); bind('st-stop', 'stopOnRelease');
+  bind('st-vib', 'vibrate', () => buzz(40)); bind('st-names', 'showNames'); bind('st-mass', 'showMass'); bind('st-stop', 'stopOnRelease');
   bind('st-left', 'leftHanded', () => { $('btns').classList.toggle('left', !!st.leftHanded); document.body.classList.toggle('lefty', !!st.leftHanded); });
   $('st-note').textContent = persistent ? '' : 'Hinweis: In dieser Ansicht kann der Fortschritt nicht dauerhaft gespeichert werden.';
   show('settings');
@@ -404,7 +441,7 @@ function buildSkins() {
   $('skin-count').textContent = `${SKINS.filter((s) => s.lvl <= lv).length} von ${SKINS.length} frei`;
   const paint = () => {
     grid.innerHTML = '';
-    SKINS.forEach((s, i) => {
+    SKINS.map((s, i) => [s, i]).sort((a, b) => a[0].lvl - b[0].lvl || a[1] - b[1]).forEach(([s, i]) => {
       const b = document.createElement('button'), locked = s.lvl > lv;
       const cvs = document.createElement('canvas'); cvs.width = cvs.height = 108; drawSkinPreview(cvs, i, store.hue);
       b.appendChild(cvs); b.appendChild(document.createTextNode(s.name));
@@ -438,10 +475,14 @@ $('help-body').innerHTML = `
 <li>Geteilte Blobs <b>verschmelzen</b> nach einiger Zeit wieder. Der Zähler unten zeigt, wie lange es dauert.</li>
 <li><b>Schwarze Löcher:</b> Als Kleiner bist du darin sicher. Bist du größer als das Loch, zerplatzt du in viele Teile.</li>
 <li>Goldener Sternenstaub ist fünfmal so viel wert.</li>
-<li>Große Blobs verlieren langsam Masse.</li></ul>
+<li>Große Blobs verlieren langsam Masse.</li>
+<li><b>Wurmlöcher</b> (türkise Wirbel) bringen kleine Blobs blitzschnell ans andere Ende der Karte.</li>
+<li>Der weiße Pfeil an deinem Blob zeigt, wohin du teilst und auswirfst.</li></ul>
 <h3>Gegenstände</h3><div class="items">${ITEMS.filter(Boolean).map((i) => `<div><i>${i.icon}</i><span><b>${i.name}</b> – ${i.desc}</span></div>`).join('')}</div>
 <h3>Modi</h3><ul>${Object.entries(MODES).map(([k, m]) => `<li><b>${MODE_ICON[k]} ${m.label}:</b> ${m.desc}</li>`).join('')}
 <li><b>Chaos-Modus:</b> Doppelter Sternenstaub, viele Gegenstände, schnelleres Verschmelzen.</li></ul>
+<h3>Flaggenjagd</h3><p>Berühre die gegnerische Flagge, um sie aufzunehmen, und trage sie in deine Basis. Punkten kannst du nur, wenn deine eigene Flagge zu Hause ist. Wirst du gefressen, bleibt die Flagge liegen – berühre deine eigene Flagge, um sie zurückzuholen. Das erste Team mit 5 Punkten gewinnt.</p>
+<h3>Tagesaufgaben</h3><p>Jeden Tag gibt es drei neue Aufgaben auf der Startseite. Jede bringt 150 XP.</p>
 <h3>Mehrspieler</h3><p>Einer tippt auf <b>Spiel hosten</b> und bekommt einen <b>Raumcode</b> mit 5 Zeichen. Alle anderen öffnen dieselbe Seite, tippen auf <b>Beitreten</b> und geben den Code ein – auch mitten in der laufenden Partie. Bis zu 12 Menschen spielen zusammen. Das Spiel läuft auf dem Handy des Hosts: Er sollte die Seite offen lassen.</p>`;
 
 // ---------- Spielknöpfe ----------
@@ -469,7 +510,7 @@ function startDemo() {
   const sim = new Sim({ bots: 18, map: 'klein', mayhem: true, botLevel: 3, items: true });
   const fake = { cx: sim.w / 2, cy: sim.h / 2, viewW: 1900, alive: false, item: 0, mergeSecs: 0, fx: { ghost: 0 }, team: -1 };
   world.opts = sim.opts; world.w = sim.w; world.h = sim.h; world.me = 0;
-  world.setPlayers(sim.playerTable()); world.dots = decodeDots(encodeDots(sim));
+  world.setPlayers(sim.playerTable()); world.dots = decodeDots(encodeDots(sim)); world.worms = sim.worms.map((q) => [q.x, q.y]);
   const tick = () => {
     sim.events.length = 0; sim.dotEvents.length = 0; sim.step();
     const l = sim.leader;
@@ -486,7 +527,7 @@ function stopDemo() { if (demo) { clearInterval(demo.timer); demo = null; } }
 let hudT = 0, lastEjectSfx = 0, lastInput = 0, sentAx = 0, sentAy = 0, sentEj = false, miniT = 0, lastTick = -1;
 function updateHud(now) {
   const info = world.info, o = world.opts; if (!o) return;
-  const me = world.me, teamMode = o.mode === 'teams' || o.mode === 'soccer';
+  const me = world.me, teamMode = isTeamMode(o.mode);
   // Bestenliste
   let h = '';
   if (info) {
@@ -498,13 +539,13 @@ function updateHud(now) {
     const rows = window.innerHeight < 460 || window.innerWidth < 600 ? 5 : teamMode ? 5 : 8;
     h += `<div class="t">Bestenliste</div>`;
     info.lb.slice(0, rows).forEach(([pid, score], i) => { h += `<div class="r${pid === me ? ' me' : ''}"><span>${i + 1}. ${esc(world.playerName(pid))}</span><b>${fmt(score)}</b></div>`; });
-    if (!teamMode && info.lb[0] && info.lb[0][0] === me && info.n >= 4) { if (!wasTop) { wasTop = true; banner('👑 Platz 1!'); achieve('top1'); } } else wasTop = false;
+    if (!teamMode && info.lb[0] && info.lb[0][0] === me && info.n >= 4) { if (!wasTop) { wasTop = true; banner('👑 Platz 1!'); achieve('top1'); mission('top', 1); } } else wasTop = false;
   }
   $('lb').innerHTML = h;
   // Status
   let s = '';
   if (info) {
-    if (o.mode === 'soccer') s = `<span class="sc"><b style="color:hsl(212 90% 68%)">${info.goals[0]}</b> : <b style="color:hsl(2 90% 68%)">${info.goals[1]}</b></span><small>${info.ph === 'ended' ? 'Abpfiff' : clock(Math.max(0, info.tl))}</small>`;
+    if (o.mode === 'soccer' || o.mode === 'ctf') s = `<span class="sc"><b style="color:hsl(212 90% 68%)">${info.goals[0]}</b> : <b style="color:hsl(2 90% 68%)">${info.goals[1]}</b></span><small>${info.ph === 'ended' ? 'Schluss' : clock(Math.max(0, info.tl))}${o.mode === 'ctf' ? ' · bis ' + CTF_WIN : ''}</small>`;
     else if (o.mode === 'royale') s = info.ph === 'warmup' ? `Start in ${info.tl} s<small>${info.alive} Spieler bereit</small>` : info.ph === 'play' ? `Noch ${info.alive} am Leben<small>${info.zs > 0 ? 'Zone schrumpft in ' + info.zs + ' s' : 'Die Zone schrumpft'}</small>` : '';
     else if (info.tl >= 0 && info.ph === 'play') s = clock(info.tl);
     if (info.ph === 'ended' && current === 'round') $('round-next').textContent = `Nächste Runde in ${info.tl} s`;
@@ -516,7 +557,7 @@ function updateHud(now) {
   if (world.myCells) {
     $('mass').textContent = fmt(world.myMass);
     $('massinfo').textContent = world.myCells > 1 ? `${world.myCells} Teile` + (world.mergeSecs ? ` · verschmilzt in ${world.mergeSecs} s` : ' · verschmilzt') : '';
-    if (world.myMass > life.best) life.best = world.myMass;
+    if (world.myMass > life.best) { life.best = world.myMass; mission('mass', Math.floor(life.best)); }
     if (life.best >= 500) achieve('m500'); if (life.best >= 2000) achieve('m2000'); if (life.best >= 10000) achieve('m10000');
     if (world.myCells >= 12) achieve('swarm');
     if (life.active && now - life.start > 300000) achieve('survive5');
@@ -550,7 +591,7 @@ function frame(now) {
     if (now - miniT > 120) { miniT = now; renderer.drawMinimap($('mini'), window.innerHeight < 460 ? 78 : 104); }
   }
   void before;
-  renderer.draw(now, inGame && input.enabled ? input.joy : null);
+  renderer.draw(now, inGame && input.enabled ? input.joy : null, inGame && world.alive ? input : null);
 }
 
 window.addEventListener('resize', () => renderer.resize());

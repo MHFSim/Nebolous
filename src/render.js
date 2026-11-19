@@ -1,6 +1,6 @@
 // Canvas-Renderer: Weltraum-Hintergrund, Sternenstaub, Blobs mit Skins, Schwarze Löcher, Effekte, Minimap.
 import { skinTexture } from './skins.js';
-import { ITEMS, TEAM_COLORS, GOAL_HALF, EMOTES, F_HIDDEN, F_SHIELD, F_FROZEN, F_GHOST, F_PROT, F_TURBO, F_MAGNET } from './config.js';
+import { ITEMS, TEAM_COLORS, GOAL_HALF, EMOTES, CTF_BASE, isTeamMode, F_HIDDEN, F_SHIELD, F_FROZEN, F_GHOST, F_PROT, F_TURBO, F_MAGNET } from './config.js';
 
 const TAU = Math.PI * 2;
 const hsl = (h, s, l, a = 1) => `hsla(${((h % 360) + 360) % 360},${s}%,${l}%,${a})`;
@@ -86,6 +86,54 @@ function makeBall() {
   for (let i = 0; i < 6; i++) { const a = (i / 6) * TAU + 0.3; c.beginPath(); c.moveTo(Math.cos(a) * R * 0.27, Math.sin(a) * R * 0.27); c.lineTo(Math.cos(a) * R * 0.6, Math.sin(a) * R * 0.6); c.stroke(); }
   return cv;
 }
+function makeDeep(T) {
+  const cv = mkCanvas(T), c = cv.getContext('2d'), r = rnd(77);
+  // ferne Galaxien
+  for (let i = 0; i < 3; i++) {
+    const x = T * (0.15 + r() * 0.7), y = T * (0.15 + r() * 0.7), rad = 70 + r() * 70, h = [200, 290, 30][i];
+    c.save(); c.translate(x, y); c.rotate(r() * 3); c.scale(1, 0.38);
+    const g = c.createRadialGradient(0, 0, 0, 0, 0, rad);
+    g.addColorStop(0, hsl(h, 70, 85, 0.5)); g.addColorStop(0.2, hsl(h, 80, 60, 0.22)); g.addColorStop(1, hsl(h, 80, 50, 0));
+    c.fillStyle = g; c.beginPath(); c.arc(0, 0, rad, 0, TAU); c.fill(); c.restore();
+  }
+  // Planeten
+  const planets = [[0.22, 0.3, 46, 28], [0.72, 0.62, 70, 195], [0.5, 0.12, 22, 330], [0.86, 0.2, 30, 120]];
+  for (const [fx, fy, rad, h] of planets) {
+    const x = T * fx, y = T * fy;
+    let g = c.createRadialGradient(x, y, rad * 0.8, x, y, rad * 1.5);
+    g.addColorStop(0, hsl(h, 80, 60, 0.2)); g.addColorStop(1, hsl(h, 80, 60, 0));
+    c.fillStyle = g; c.beginPath(); c.arc(x, y, rad * 1.5, 0, TAU); c.fill();
+    c.save(); c.beginPath(); c.arc(x, y, rad, 0, TAU); c.clip();
+    g = c.createRadialGradient(x - rad * 0.45, y - rad * 0.45, rad * 0.1, x, y, rad * 1.25);
+    g.addColorStop(0, hsl(h, 55, 62)); g.addColorStop(0.55, hsl(h + 15, 55, 30)); g.addColorStop(1, hsl(h + 30, 60, 6));
+    c.fillStyle = g; c.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    for (let i = 0; i < 6; i++) { c.fillStyle = hsl(h + (r() - 0.5) * 50, 50, 20 + r() * 40, 0.22); c.fillRect(x - rad, y - rad + r() * rad * 2, rad * 2, 2 + r() * rad * 0.16); }
+    c.restore();
+    if (rad > 60) { c.save(); c.translate(x, y); c.rotate(-0.45); c.strokeStyle = hsl(h + 30, 60, 75, 0.45); c.lineWidth = 7; c.beginPath(); c.ellipse(0, 0, rad * 1.75, rad * 0.4, 0, 0.15, Math.PI - 0.15); c.stroke(); c.restore(); }
+  }
+  return cv;
+}
+function makeWorm() {
+  const S = 256, cv = mkCanvas(S), c = cv.getContext('2d'), R = S / 2;
+  c.translate(R, R);
+  let g = c.createRadialGradient(0, 0, 0, 0, 0, R);
+  g.addColorStop(0, 'rgba(230,255,255,0.95)'); g.addColorStop(0.16, 'rgba(90,255,230,0.75)'); g.addColorStop(0.5, 'rgba(30,150,255,0.25)'); g.addColorStop(1, 'rgba(30,120,255,0)');
+  c.fillStyle = g; c.beginPath(); c.arc(0, 0, R, 0, TAU); c.fill();
+  c.globalCompositeOperation = 'lighter'; c.lineCap = 'round';
+  for (let arm = 0; arm < 4; arm++) {
+    c.beginPath();
+    for (let i = 0; i <= 40; i++) { const t = i / 40, a = arm * (TAU / 4) + t * 4.2, rr = 8 + t * R * 0.82; c.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+    c.strokeStyle = 'rgba(120,255,235,0.5)'; c.lineWidth = 5; c.stroke();
+  }
+  return cv;
+}
+function makeVignette() {
+  const S = 256, cv = mkCanvas(S), c = cv.getContext('2d');
+  const g = c.createRadialGradient(S / 2, S / 2, S * 0.3, S / 2, S / 2, S * 0.72);
+  g.addColorStop(0, 'rgba(0,0,8,0)'); g.addColorStop(1, 'rgba(0,0,8,0.6)');
+  c.fillStyle = g; c.fillRect(0, 0, S, S);
+  return cv;
+}
 function makeGlow() {
   const S = 128, cv = mkCanvas(S), c = cv.getContext('2d'), R = S / 2;
   const g = c.createRadialGradient(R, R, R * 0.55, R, R, R);
@@ -109,6 +157,8 @@ export class Renderer {
     this.itemSprites = ITEMS.map((it) => (it ? makeItem(it) : null));
     this.ballSprite = makeBall();
     this.glow = makeGlow();
+    this.deep = makeDeep(1500); this.wormSprite = makeWorm(); this.vignette = makeVignette();
+    this.shoot = null; this.aim = null;
     this.drawList = [];
     this.resize();
   }
@@ -128,7 +178,8 @@ export class Renderer {
     c.globalAlpha = 1;
   }
 
-  draw(now, joy) {
+  draw(now, joy, aim) {
+    this.aim = aim || null;
     const c = this.ctx, w = this.world, W = this.W, H = this.H, st = this.settings;
     const cam = w.cam;
     const scale = this.scale = Math.max(W, H) / cam.viewW;
@@ -145,6 +196,17 @@ export class Renderer {
       const px = cam.x * scale, py = cam.y * scale;
       if (hiq) { this.tile(this.nebula, px * 0.12, py * 0.12, 0.9); this.tile(this.nebula2, px * 0.22 + 300, py * 0.22 + 120, 0.55); }
       this.tile(this.stars1, px * 0.3, py * 0.3, 0.8);
+      if (hiq) this.tile(this.deep, px * 0.4 + 200, py * 0.4 + 500, 0.85);
+      // Sternschnuppen
+      if (!this.shoot && Math.random() < 0.004) { const a = 0.5 + Math.random() * 0.6; this.shoot = { x: Math.random() * W, y: Math.random() * H * 0.5, vx: Math.cos(a) * 900, vy: Math.sin(a) * 900, t0: now }; }
+      if (this.shoot) {
+        const sh = this.shoot, t = (now - sh.t0) / 1000;
+        if (t > 0.7) this.shoot = null; else {
+          const x = sh.x + sh.vx * t, y = sh.y + sh.vy * t, g = c.createLinearGradient(x, y, x - sh.vx * 0.12, y - sh.vy * 0.12);
+          g.addColorStop(0, `rgba(255,255,255,${0.9 * (1 - t / 0.7)})`); g.addColorStop(1, 'rgba(160,200,255,0)');
+          c.strokeStyle = g; c.lineWidth = 2; c.beginPath(); c.moveTo(x, y); c.lineTo(x - sh.vx * 0.12, y - sh.vy * 0.12); c.stroke();
+        }
+      }
       this.tile(this.stars2, px * 0.55, py * 0.55, 0.9);
     }
 
@@ -166,11 +228,26 @@ export class Renderer {
     const ex = w.w * scale + ox, ey = w.h * scale + oy;
     if (ex < W) c.fillRect(ex, 0, W - ex, H);
     if (ey < H) c.fillRect(0, ey, W, H - ey);
-    c.strokeStyle = 'rgba(120,170,255,0.25)'; c.lineWidth = 10; c.strokeRect(ox, oy, w.w * scale, w.h * scale);
+    c.strokeStyle = `rgba(120,170,255,${0.22 + 0.12 * Math.sin(now * 0.003)})`; c.lineWidth = 14; c.strokeRect(ox, oy, w.w * scale, w.h * scale);
     c.strokeStyle = '#8fd0ff'; c.lineWidth = 2.5; c.strokeRect(ox, oy, w.w * scale, w.h * scale);
 
     const soccer = w.opts && w.opts.mode === 'soccer';
     if (soccer) this.drawPitch(c, scale, ox, oy);
+    if (w.opts && w.opts.mode === 'ctf') {
+      for (const side of [0, 1]) {
+        const hue = TEAM_COLORS[side].hue, bx = (side === 0 ? CTF_BASE : w.w - CTF_BASE) * scale + ox, by = (w.h / 2) * scale + oy, br = 230 * scale;
+        c.fillStyle = hsl(hue, 85, 55, 0.14); c.beginPath(); c.arc(bx, by, br, 0, TAU); c.fill();
+        c.strokeStyle = hsl(hue, 90, 68, 0.8); c.lineWidth = Math.max(2, 6 * scale); c.setLineDash([16 * scale + 4, 12 * scale + 3]); c.lineDashOffset = now * 0.02 * (side ? 1 : -1); c.stroke(); c.setLineDash([]);
+      }
+      c.strokeStyle = 'rgba(255,255,255,0.14)'; c.lineWidth = Math.max(1.5, 5 * scale); c.beginPath(); c.moveTo((w.w / 2) * scale + ox, oy); c.lineTo((w.w / 2) * scale + ox, w.h * scale + oy); c.stroke();
+    }
+    // Wurmlöcher
+    for (let i = 0; i < w.worms.length; i++) {
+      const [wx, wy] = w.worms[i];
+      if (wx < vx0 - 120 || wx > vx1 + 120 || wy < vy0 - 120 || wy > vy1 + 120) continue;
+      const s2 = 210 * scale * (1 + 0.06 * Math.sin(now * 0.004 + i));
+      c.save(); c.translate(wx * scale + ox, wy * scale + oy); c.rotate(-now * 0.0022 + i); c.drawImage(this.wormSprite, -s2 / 2, -s2 / 2, s2, s2); c.restore();
+    }
 
     // Zone (Battle Royale)
     if (w.zone) {
@@ -226,7 +303,7 @@ export class Renderer {
     for (const n of w.holes) if (!(n.x + n.r * 1.6 < vx0 || n.x - n.r * 1.6 > vx1 || n.y + n.r * 1.6 < vy0 || n.y - n.r * 1.6 > vy1)) list.push(n);
     list.sort((a, b) => a.r - b.r);
     const leader = w.info && w.info.lb && w.info.lb[0] ? w.info.lb[0][0] : 0;
-    const teamMode = w.opts && (w.opts.mode === 'teams' || w.opts.mode === 'soccer');
+    const teamMode = w.opts && isTeamMode(w.opts.mode);
     const myTeam = w.players.get(w.me) ? w.players.get(w.me).team : -1;
     let crownCell = 0;
     if (leader && !teamMode) { let br = 0; for (const n of list) if (n.kind === 'c' && n.pid === leader && n.r > br) { br = n.r; crownCell = n.id; } }
@@ -251,6 +328,19 @@ export class Renderer {
       const x = (n.x + (tx - n.x) * a) * scale + ox, y = (n.y + (ty - n.y) * a) * scale + oy, r = n.r * (1 - a) * scale;
       if (r < 1 || !p) continue;
       c.globalAlpha = 1 - a * 0.5; c.drawImage(skinTexture(p.skin, p.hue), x - r, y - r, r * 2, r * 2); c.globalAlpha = 1;
+    }
+
+    // Flaggen
+    for (const f of w.flags) {
+      const hue = TEAM_COLORS[f.team].hue, fx = f.x * scale + ox, sz = Math.max(20, 80 * scale);
+      let fy = f.y * scale + oy;
+      if (f.carrier) { let cr = 0; for (const n of w.cells) if (n.pid === f.carrier && n.r > cr) cr = n.r; fy -= cr * scale * 0.9; } else fy += Math.sin(now * 0.004 + f.team) * 3;
+      if (fx < -60 || fx > W + 60 || fy < -60 || fy > H + 60) { this.arrow(c, fx, fy, hsl(hue, 90, 68), '🚩'); continue; }
+      c.strokeStyle = '#f2f4ff'; c.lineWidth = Math.max(2, sz * 0.07); c.lineCap = 'round'; c.beginPath(); c.moveTo(fx, fy + sz * 0.5); c.lineTo(fx, fy - sz * 0.6); c.stroke();
+      const wv = Math.sin(now * 0.008 + f.team * 2) * sz * 0.07;
+      c.fillStyle = hsl(hue, 90, 58); c.strokeStyle = hsl(hue, 95, 80); c.lineWidth = 1.5;
+      c.beginPath(); c.moveTo(fx, fy - sz * 0.6); c.quadraticCurveTo(fx + sz * 0.35, fy - sz * 0.62 + wv, fx + sz * 0.7, fy - sz * 0.36 + wv); c.quadraticCurveTo(fx + sz * 0.35, fy - sz * 0.2 - wv, fx, fy - sz * 0.12); c.closePath(); c.fill(); c.stroke();
+      if (!f.home && !f.carrier) { c.strokeStyle = `rgba(255,255,255,${0.5 + 0.4 * Math.sin(now * 0.01)})`; c.lineWidth = 2; c.beginPath(); c.arc(fx, fy, sz * 0.8, 0, TAU); c.stroke(); }
     }
 
     // Effekte
@@ -282,6 +372,8 @@ export class Renderer {
       const bx = w.ball.x * scale + ox, by = w.ball.y * scale + oy;
       if (bx < 0 || bx > W || by < 0 || by > H) this.arrow(c, bx, by, '#ffffff', '⚽');
     }
+
+    if (hiq) c.drawImage(this.vignette, 0, 0, W, H);
 
     // Steuerknüppel
     if (joy && joy.active) {
@@ -341,7 +433,19 @@ export class Renderer {
     if (hiq && r > 14 && alpha === 1) { c.globalAlpha = mine ? 0.5 : 0.28; c.drawImage(this.glow, x - r * 1.32, y - r * 1.32, r * 2.64, r * 2.64); }
     c.globalAlpha = alpha;
     const wob = hiq ? 1 + 0.018 * Math.sin(now * 0.0045 + n.seed) : 1;
-    c.drawImage(tex, x - r * wob, y - r / wob, r * 2 * wob, (r * 2) / wob);
+    const vx = ((n.tx - n.sx) / n.dur) * 1000, vy = ((n.ty - n.sy) / n.dur) * 1000, sq = Math.min(0.17, Math.hypot(vx, vy) / 8000);
+    if (hiq && sq > 0.025 && r > 6) {
+      const a = Math.atan2(vy, vx);
+      c.save(); c.translate(x, y); c.rotate(a); c.scale(1 + sq, 1 - sq * 0.75); c.rotate(-a); c.drawImage(tex, -r, -r, r * 2, r * 2); c.restore();
+    } else c.drawImage(tex, x - r * wob, y - r / wob, r * 2 * wob, (r * 2) / wob);
+    if (mine && this.aim && r > 8) {
+      const am = Math.hypot(this.aim.ax, this.aim.ay);
+      if (am > 0.1) {
+        const a = Math.atan2(this.aim.ay, this.aim.ax), d = r + Math.max(7, r * 0.16), sz = Math.max(6, Math.min(16, r * 0.2));
+        c.save(); c.translate(x + Math.cos(a) * d, y + Math.sin(a) * d); c.rotate(a);
+        c.fillStyle = 'rgba(255,255,255,0.8)'; c.beginPath(); c.moveTo(sz, 0); c.lineTo(-sz * 0.5, -sz * 0.7); c.lineTo(-sz * 0.15, 0); c.lineTo(-sz * 0.5, sz * 0.7); c.closePath(); c.fill(); c.restore();
+      }
+    }
     c.globalAlpha = 1;
     if (teamMode && r > 6) { c.strokeStyle = hsl(TEAM_COLORS[p.team].hue, 95, p.team === myTeam ? 78 : 60); c.lineWidth = Math.max(1.5, r * 0.07); c.beginPath(); c.arc(x, y, r * 0.97, 0, TAU); c.stroke(); }
     if (f & F_FROZEN) { c.fillStyle = 'rgba(170,225,255,0.5)'; c.beginPath(); c.arc(x, y, r, 0, TAU); c.fill(); c.strokeStyle = '#e6f7ff'; c.lineWidth = 2; c.stroke(); }
@@ -393,7 +497,7 @@ export class Renderer {
     c.fillStyle = 'rgba(8,10,26,0.72)'; c.fillRect(0, 0, mw, mh);
     const k = mw / w.w;
     if (w.zone) { c.strokeStyle = '#ff7088'; c.lineWidth = 1.5; c.beginPath(); c.arc(w.zone.x * k, w.zone.y * k, w.zone.r * k, 0, TAU); c.stroke(); }
-    const me = w.players.get(w.me), teamMode = w.opts && (w.opts.mode === 'teams' || w.opts.mode === 'soccer');
+    const me = w.players.get(w.me), teamMode = w.opts && isTeamMode(w.opts.mode);
     if (w.info && w.info.mm) {
       const leader = w.info.lb && w.info.lb[0] ? w.info.lb[0][0] : 0;
       for (const [pid, x, y, s] of w.info.mm) {
@@ -406,6 +510,8 @@ export class Renderer {
       }
     }
     if (w.ball) { c.fillStyle = '#fff'; c.beginPath(); c.arc(w.ball.x * k, w.ball.y * k, 3.5, 0, TAU); c.fill(); }
+    for (const [wx, wy] of w.worms) { c.strokeStyle = '#6fffe6'; c.lineWidth = 1.5; c.beginPath(); c.arc(wx * k, wy * k, 2.6, 0, TAU); c.stroke(); }
+    for (const f of w.flags) { c.fillStyle = hsl(TEAM_COLORS[f.team].hue, 95, 65); c.fillRect(f.x * k - 3, f.y * k - 3, 6, 6); c.strokeStyle = '#fff'; c.lineWidth = 1; c.strokeRect(f.x * k - 3, f.y * k - 3, 6, 6); }
     const cam = w.cam, vw = cam.viewW * k, vh = vw * (Math.min(this.W, this.H) / Math.max(this.W, this.H));
     c.strokeStyle = 'rgba(255,255,255,0.3)'; c.lineWidth = 1;
     const rw = this.W >= this.H ? vw : vh, rh = this.W >= this.H ? vh : vw;

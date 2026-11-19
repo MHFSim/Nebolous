@@ -10,7 +10,7 @@ export class World {
     this.dots = null;
     this.ents = new Map();
     this.cells = []; this.pellets = []; this.holes = []; this.items = [];
-    this.ball = null; this.zone = null;
+    this.ball = null; this.zone = null; this.worms = []; this.flags = [];
     this.info = null;
     this.alive = false; this.item = 0; this.mergeSecs = 0;
     this.cam = { x: 3000, y: 3000, viewW: 1500, init: false };
@@ -55,7 +55,8 @@ export class World {
           n = { id: e.id, kind, x: e.x, y: e.y, r: e.r || 0, sx: e.x, sy: e.y, sr: e.r || 0, born: now, seed: Math.random() * 1000 };
           if (kind === 'c') { n.r = n.sr = (e.r || 10) * 0.6; }
           ents.set(e.id, n);
-        } else { n.sx = n.x; n.sy = n.y; n.sr = n.r; }
+        } else if (Math.abs(e.x - n.x) + Math.abs(e.y - n.y) > 700) { n.x = n.sx = e.x; n.y = n.sy = e.y; n.sr = n.r; }
+        else { n.sx = n.x; n.sy = n.y; n.sr = n.r; }
         n.tx = e.x; n.ty = e.y; n.tr = e.r || 0; n.t0 = now; n.dur = dur; n.stamp = stamp;
         if (kind === 'c') { n.pid = e.pid; n.f = e.f; } else if (kind === 'p') n.hue = e.hue; else if (kind === 'i') n.type = e.type;
         list.push(n);
@@ -87,6 +88,10 @@ export class World {
       if (Math.hypot(b.tx - b.sx, b.ty - b.sy) > 600) { b.x = b.sx = b.tx; b.y = b.sy = b.ty; }
     } else this.ball = null;
     this.zone = s.zone || null;
+    if (s.flags) {
+      if (this.flags.length !== 2) this.flags = s.flags.map((f, i) => ({ team: i, x: f.x, y: f.y }));
+      s.flags.forEach((f, i) => { const g = this.flags[i]; g.tx = f.x; g.ty = f.y; g.home = f.home; g.carrier = f.carrier; });
+    } else if (this.flags.length) this.flags = [];
     this.alive = s.alive; this.item = s.item; this.mergeSecs = s.mergeSecs;
     this.snapCx = s.cx; this.snapCy = s.cy; this.snapViewW = s.viewW;
     if (!cam.init) { cam.x = s.cx; cam.y = s.cy; cam.viewW = s.viewW; cam.init = true; }
@@ -116,6 +121,16 @@ export class World {
       for (const c of this.cells) if (c.pid === this.me) { const d = Math.hypot(c.x - tx, c.y - ty) + c.r; if (d > spread) spread = d; }
       tv = Math.max(viewWidth(sr), spread * 2.6);
     } else { tx = this.snapCx ?? cam.x; ty = this.snapCy ?? cam.y; tv = this.snapViewW || 1700; this.myCells = 0; }
+    if (Math.abs(tx - cam.x) + Math.abs(ty - cam.y) > 1600 && n) { cam.x = tx; cam.y = ty; }
+    for (const f of this.flags) { const kf = Math.abs(f.tx - f.x) + Math.abs(f.ty - f.y) > 700 ? 1 : 1 - Math.exp(-dt * 14); f.x += (f.tx - f.x) * kf; f.y += (f.ty - f.y) * kf; }
+    // Schweif hinter schnellen Zellen
+    if (this.particles.length < 260) for (const c of this.cells) {
+      const v = (Math.abs(c.tx - c.sx) + Math.abs(c.ty - c.sy)) / c.dur * 1000;
+      if (v > 800 && Math.random() < 0.5) {
+        const pl = this.players.get(c.pid), a = Math.random() * 6.283, rr = c.r * 0.7 * Math.random();
+        this.particles.push({ x: c.x + Math.cos(a) * rr, y: c.y + Math.sin(a) * rr, vx: 0, vy: 0, life: 380, max: 380, hue: pl ? pl.hue : 200, size: Math.max(4, c.r * 0.22) });
+      }
+    }
     const k = 1 - Math.exp(-dt * (n ? 9 : 4)), kz = 1 - Math.exp(-dt * 2.2);
     cam.x += (tx - cam.x) * k; cam.y += (ty - cam.y) * k; cam.viewW += (tv - cam.viewW) * kz;
     if (this.shake > 0) this.shake = Math.max(0, this.shake - dt * 30);

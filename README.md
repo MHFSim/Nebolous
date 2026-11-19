@@ -10,10 +10,11 @@ Jeder Push auf `main` baut das Spiel, lässt die Tests laufen und stellt es auf 
 
 - Wachsen durch Sternenstaub und kleinere Spieler, Teilen, Masse auswerfen, Wiederverschmelzen
 - Schwarze Löcher: Kleine verstecken sich darin, Große zerplatzen, Auswurf schiebt sie weg
-- 4 Modi: Jeder gegen jeden, Teams (2–4), Battle Royale mit schrumpfender Zone, Fußball
+- 5 Modi: Jeder gegen jeden, Teams (2–4), Battle Royale mit schrumpfender Zone, Flaggenjagd, Fußball
+- Wurmlöcher, die kleine Blobs quer über die Karte schicken
 - Zeitrunden, Chaos-Modus, 3 Kartengrößen, bis zu 28 Bots in 3 Stärken
-- 8 Gegenstände: Turbo, Schild, Fusion, Sog, Frost, Wachstum, Tarnung, Supernova
-- 33 gezeichnete Skins mit frei wählbarer Farbe, Level, XP, 24 Erfolge, Statistik
+- 10 Gegenstände: Turbo, Schild, Fusion, Sog, Frost, Wachstum, Tarnung, Supernova, Sprung, Doppelstaub
+- 44 gezeichnete Skins mit frei wählbarer Farbe, Level, XP, 28 Erfolge, Tagesaufgaben, Statistik
 - Bestenliste, Minimap, Kill-Meldungen, Emotes, Ton, Touch- und Maus/Tastatur-Steuerung
 
 ## Entwickeln

@@ -185,3 +185,10 @@ body.ingame.lefty #toasts { align-items: flex-end; left: calc(214px + var(--sl))
   body.ingame #massbar { left: calc(14px + var(--sl)); transform: none; text-align: left; }
   body.ingame.lefty #massbar { left: auto; right: calc(14px + var(--sr)); text-align: right; }
 }
+.daily { display: grid; gap: 4px; background: rgba(0, 0, 20, 0.35); border: 1px solid var(--line); border-radius: 14px; padding: 8px 12px; font-size: 14.5px; }
+.daily .t { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--dim); font-weight: 700; display: flex; justify-content: space-between; }
+.daily .t b { color: var(--good); letter-spacing: 0; }
+.daily .m { display: flex; gap: 8px; align-items: center; font-weight: 600; } .daily .m span { flex: 1; } .daily .m b { color: var(--acc); font-weight: 700; }
+.daily .m.done span { color: var(--dim); text-decoration: line-through; } .daily .m.done b { color: var(--good); }
+.modes button:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (max-height: 460px) { .daily { display: none; } }

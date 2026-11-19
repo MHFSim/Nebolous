@@ -52,7 +52,7 @@ export class HostSession {
 
   start() {
     const sim = this.sim;
-    this.h.welcome({ pid: this.pid, opts: sim.opts, w: sim.w, h: sim.h, players: sim.playerTable(), host: true });
+    this.h.welcome({ pid: this.pid, opts: sim.opts, w: sim.w, h: sim.h, players: sim.playerTable(), host: true, worms: sim.worms.map((q) => [Math.round(q.x), Math.round(q.y)]) });
     this.h.dots(decodeDots(encodeDots(sim)));
     sim.events.length = 0;
     this.stopTicker = makeTicker(() => this.pump(), 1000 / TICK_HZ);
@@ -115,7 +115,7 @@ export class HostSession {
         clearTimeout(kill);
         this.conns.set(pid, conn); conn._pid = pid; conn._needDots = false;
         const sim = this.sim;
-        conn.send(JSON.stringify({ t: 'welcome', pid, opts: sim.opts, w: sim.w, h: sim.h, players: sim.playerTable(), code: this.code, info: sim.info() }));
+        conn.send(JSON.stringify({ t: 'welcome', pid, opts: sim.opts, w: sim.w, h: sim.h, players: sim.playerTable(), code: this.code, info: sim.info(), worms: sim.worms.map((q) => [Math.round(q.x), Math.round(q.y)]) }));
         conn.send(encodeDots(sim));
         this.tableDirty = true;
       } else if (!pid) return;
@@ -250,7 +250,7 @@ export class ClientSession {
           let m; try { m = JSON.parse(data); } catch (e) { return; }
           if (m.t === 'welcome') {
             this.welcomed = true; this.pid = m.pid;
-            this.h.welcome({ pid: m.pid, opts: m.opts, w: m.w, h: m.h, players: m.players, host: false, code: this.code });
+            this.h.welcome({ pid: m.pid, opts: m.opts, w: m.w, h: m.h, players: m.players, host: false, code: this.code, worms: m.worms || [] });
             if (m.info) this.h.info(m.info);
             if (!settled) { settled = true; clearTimeout(timer); resolve(); }
             this.pingTimer = setInterval(() => { if (conn.open) conn.send(JSON.stringify({ t: 'ping', ts: performance.now() })); }, 2000);

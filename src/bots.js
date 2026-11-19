@@ -58,7 +58,7 @@ export function botThink(sim, p) {
       if (best) { ax = (best.x - big.x) / (bd || 1); ay = (best.y - big.y) / (bd || 1); }
     }
     if (p.item && danger > 0.35) {
-      if (p.item === 2 || p.item === 1 || p.item === 7 || p.item === 8 || p.item === 5) sim.useItem(p.pid);
+      if (p.item === 2 || p.item === 1 || p.item === 7 || p.item === 8 || p.item === 5 || p.item === 9) { p.dx = ax; p.dy = ay; sim.useItem(p.pid); }
     }
     if (L >= 2 && danger > 0.75 && p.cells.length === 1 && big.m > 80 && b.splitCd <= 0 && sim.rng() < 0.3) { p.dx = ax; p.dy = ay; sim.split(p.pid); b.splitCd = 6; }
   } else if (prey && preyScore > 0.02) {
@@ -101,7 +101,7 @@ export function botThink(sim, p) {
       if (b.wt <= 0) { const a = sim.rng() * 6.283; b.wx = Math.cos(a); b.wy = Math.sin(a); b.wt = 2 + sim.rng() * 3; }
       ax = b.wx; ay = b.wy;
     }
-    if (p.item === 6 || p.item === 4) sim.useItem(p.pid);
+    if (p.item === 6 || p.item === 4 || p.item === 10) sim.useItem(p.pid);
     if (p.item === 3 && p.cells.length > 3) sim.useItem(p.pid);
     if (p.item && sim.rng() < 0.01) sim.useItem(p.pid);
   }
@@ -120,6 +120,20 @@ export function botThink(sim, p) {
       if (L >= 2 && behind && db < ball.r + big.r + 260 && b.splitCd <= 0 && big.m > 70 && p.cells.length < 3 && (dbx / db) * gx + (dby / db) * gy > 0.85) {
         p.dx = dbx / db; p.dy = dby / db; sim.split(p.pid); b.splitCd = 4;
       }
+    }
+  }
+
+  // Flaggenjagd
+  if (sim.flags && danger < 0.5) {
+    const own = sim.flags[p.team], en = sim.flags[1 - p.team];
+    let tx = null, ty = 0;
+    if (p.hasFlag) { tx = own.hx; ty = own.hy; }
+    else if (!own.home && !own.carrier && Math.hypot(own.x - big.x, own.y - big.y) < 1600) { tx = own.x; ty = own.y; }
+    else if (own.carrier && (b.role === 0 || Math.hypot(own.x - big.x, own.y - big.y) < 900)) { tx = own.x; ty = own.y; }
+    else if (b.role !== 0) { tx = en.x; ty = en.y; }
+    if (tx !== null && !(prey && preyScore > 0.5 && !p.hasFlag)) {
+      const dx = tx - big.x, dy = ty - big.y, d = Math.hypot(dx, dy);
+      if (d > 30) { ax = dx / d; ay = dy / d; }
     }
   }
 

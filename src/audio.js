@@ -53,5 +53,7 @@ export const sfx = {
   lose() { [392, 330, 262].forEach((f, i) => tone({ f, t: 0.3, type: 'triangle', vol: 0.18, delay: i * 0.16 })); },
   click() { tone({ f: 700, t: 0.04, type: 'triangle', vol: 0.1 }); },
   ach() { [784, 988, 1175, 1568].forEach((f, i) => tone({ f, t: 0.18, type: 'triangle', vol: 0.17, delay: i * 0.08 })); },
+  warp() { tone({ f: 900, f2: 180, t: 0.25, type: 'sine', vol: 0.25 }); tone({ f: 180, f2: 1200, t: 0.3, type: 'triangle', vol: 0.18, delay: 0.12 }); },
+  streak() { [660, 880, 1320].forEach((f, i) => tone({ f, t: 0.12, type: 'square', vol: 0.1, delay: i * 0.06 })); },
   tick() { tone({ f: 880, t: 0.05, type: 'square', vol: 0.06 }); },
 };

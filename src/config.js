@@ -1,5 +1,5 @@
 // Gemeinsame Konstanten für Simulation, Netz und Darstellung.
-export const VERSION = 3;
+export const VERSION = 4;
 export const TICK_HZ = 25;
 export const DT = 1 / TICK_HZ;
 
@@ -13,11 +13,16 @@ export const MAPS = {
 };
 export const SOCCER_MAP = { w: 4600, h: 2800 };
 export const GOAL_HALF = 420;
+export const CTF_MAP = { w: 5200, h: 3000 };
+export const CTF_BASE = 280;
+export const CTF_WIN = 5;
+export const isTeamMode = (m) => m === 'teams' || m === 'soccer' || m === 'ctf';
 
 export const MODES = {
   ffa: { label: 'Jeder gegen jeden', short: 'FFA', desc: 'Friss alle. Wer die meiste Masse hat, führt.' },
   teams: { label: 'Teams', short: 'Teams', desc: 'Teams kämpfen um die größte Gesamtmasse.' },
   royale: { label: 'Battle Royale', short: 'Royale', desc: 'Ein Leben. Die Zone schrumpft. Der Letzte gewinnt.' },
+  ctf: { label: 'Flaggenjagd', short: 'Flaggen', desc: 'Klau die gegnerische Flagge und bring sie zu deiner Basis.' },
   soccer: { label: 'Fußball', short: 'Fußball', desc: 'Zwei Teams, ein Ball. Schieß ihn ins gegnerische Tor.' },
 };
 
@@ -33,7 +38,7 @@ export const DEFAULT_OPTS = {
   teams: 2,
 };
 
-export const START_MASS = 20;
+export const START_MASS = 28;
 export const MIN_SPLIT_MASS = 36;
 export const MIN_EJECT_MASS = 32;
 export const EJECT_COST = 15;
@@ -70,6 +75,8 @@ export const ITEMS = [
   { id: 6, key: 'wachstum', name: 'Wachstum', icon: '🍄', hue: 110, desc: 'Sofort 20 % mehr Masse.' },
   { id: 7, key: 'tarnung', name: 'Tarnung', icon: '👻', hue: 0, desc: '6 Sekunden lang für Gegner unsichtbar.' },
   { id: 8, key: 'nova', name: 'Supernova', icon: '💥', hue: 20, desc: 'Schleudert Gegner weg und sprengt Masse ab.' },
+  { id: 9, key: 'sprung', name: 'Sprung', icon: '🚀', hue: 300, desc: 'Du schießt blitzschnell nach vorn.' },
+  { id: 10, key: 'doppel', name: 'Doppelstaub', icon: '✨', hue: 60, desc: '12 Sekunden lang zählt Sternenstaub doppelt.' },
 ];
 
 export const EMOTES = ['😀', '😂', '😎', '😱', '😡', '👋', '❤️', '💀'];
