@@ -4,7 +4,7 @@ Ein Blob-Fress-Spiel im Weltall fürs Handy, angelehnt an das Spielprinzip von N
 
 **Spielen:** https://zehnkronen.com/Sternfresser (eigener Spielserver) · https://mhfsim.github.io/Nebolous/ (GitHub Pages, Mehrspieler über PeerJS)
 
-**Auf den eigenen Server bringen:** siehe [ANLEITUNG-SERVER.md](ANLEITUNG-SERVER.md).
+**Auf den eigenen Server bringen:** mit Docker siehe [ANLEITUNG-DOCKER.md](ANLEITUNG-DOCKER.md), mit Coolify siehe [ANLEITUNG-SERVER.md](ANLEITUNG-SERVER.md).
 
 Jeder Push auf `main` baut das Spiel, lässt die Tests laufen und stellt es auf GitHub Pages (`.github/workflows/pages.yml`). Einmalig nötig: unter *Settings → Pages → Build and deployment → Source* „GitHub Actions“ wählen.
 

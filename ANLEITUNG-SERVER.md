@@ -55,7 +55,7 @@ location /Sternfresser/ {
 location = /Sternfresser { return 301 /Sternfresser/; }
 ```
 
-Dafür in `docker-compose.yml` die Zeilen `ports:` und `- "3000:3000"` einkommentieren (am besten als `"127.0.0.1:3000:3000"`).
+`docker-compose.yml` gibt Port 3000 bereits nur lokal frei (`127.0.0.1:3000`). Ausführlich: ANLEITUNG-DOCKER.md.
 
 **Traefik** (Labels in `docker-compose.yml` ergänzen):
 
