@@ -139,7 +139,6 @@ input.hue::-moz-range-track { background: linear-gradient(90deg, hsl(0 85% 55%),
 #feed div { animation: feed 4s forwards; white-space: nowrap; max-width: 60vw; overflow: hidden; text-overflow: ellipsis; } #feed div b { color: var(--gold); } #feed div i { font-style: normal; color: #ff9db0; }
 @keyframes feed { 0% { opacity: 0; transform: translateY(-6px); } 8% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; } }
 #topr { top: calc(8px + var(--st)); right: calc(8px + var(--sr)); display: flex; gap: 6px; align-items: flex-start; }
-#mini { border-radius: 8px; display: block; }
 .hbtns { display: flex; flex-direction: column; gap: 6px; }
 .hbtn { pointer-events: auto; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--line); background: rgba(8, 10, 26, 0.6); font-size: 18px; padding: 0; }
 .hbtn:active { background: rgba(120, 150, 255, 0.3); }

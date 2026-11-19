@@ -53,7 +53,7 @@ test('Fast gleich große fressen sich nicht, Schutz verhindert Fressen', () => {
   const a = s.addPlayer({}), b = s.addPlayer({});
   const pa = s.players.get(a), pb = s.players.get(b);
   pa.prot = pb.prot = 0;
-  setCell(pa.cells[0], 2000, 2000, 110); setCell(pb.cells[0], 2005, 2000, 100);
+  setCell(pa.cells[0], 2000, 2000, 108); setCell(pb.cells[0], 2005, 2000, 100);
   s.step(); assert.equal(pb.alive, true);
   setCell(pa.cells[0], 2000, 2000, 400); setCell(pb.cells[0], 2005, 2000, 100);
   pb.fx.shield = s.time + 5;
@@ -304,4 +304,19 @@ test('Wurmloch teleportiert kleine Zellen, neue Items wirken', () => {
   p.item = 9; s.useItem(a); const x0 = p.cells[0].x; run(s, 1);
   assert.ok(p.cells[0].x - x0 > 500, 'Sprung: ' + (p.cells[0].x - x0));
   p.item = 10; s.useItem(a); assert.ok(p.fx.double > s.time);
+});
+
+test('10-%-Regel und Bot-Wiedereinstieg nach 5 Sekunden', () => {
+  const s = mk(); clearHoles(s);
+  const a = s.addPlayer({}), b = s.addPlayer({});
+  const pa = s.players.get(a), pb = s.players.get(b);
+  pa.prot = pb.prot = 0;
+  setCell(pa.cells[0], 2000, 2000, 111); setCell(pb.cells[0], 2003, 2000, 100);
+  s.step(); assert.equal(pb.alive, false, '11 % größer frisst');
+  const bot = s.players.get(s.addBot());
+  bot.prot = 0; pa.prot = 0;
+  setCell(bot.cells[0], pa.cells[0].x + 3, pa.cells[0].y, 20); s.step();
+  assert.equal(bot.alive, false);
+  run(s, 4.8); assert.equal(bot.alive, false, 'noch nicht nach 4,8 s');
+  run(s, 0.4); assert.equal(bot.alive, true, 'zurück nach 5 s');
 });

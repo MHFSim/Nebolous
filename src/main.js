@@ -471,7 +471,7 @@ $('help-body').innerHTML = `
 <li><b>Item:</b> Setzt den eingesammelten Gegenstand ein.</li></ul>
 <h3>Am Computer</h3><p>Maus zielt, <b>Leertaste</b> oder Klick teilt, <b>W</b> wirft aus, <b>E</b> nutzt das Item, <b>1–8</b> senden Emotes, <b>Esc</b> öffnet das Menü.</p>
 <h3>Regeln</h3><ul>
-<li>Du frisst einen Blob, wenn du mindestens <b>20 % schwerer</b> bist und ihn fast ganz überdeckst.</li>
+<li>Du frisst einen Blob, wenn du mindestens <b>10 % größer</b> bist und ihn fast ganz überdeckst.</li>
 <li>Geteilte Blobs <b>verschmelzen</b> nach einiger Zeit wieder. Der Zähler unten zeigt, wie lange es dauert.</li>
 <li><b>Schwarze Löcher:</b> Als Kleiner bist du darin sicher. Bist du größer als das Loch, zerplatzt du in viele Teile.</li>
 <li>Goldener Sternenstaub ist fünfmal so viel wert.</li>
@@ -588,7 +588,6 @@ function frame(now) {
     for (const s of world.sucks) if (!s.heard) { s.heard = true; if (s.to.pid === world.me) sfx.dot(); }
     for (const [pid, em] of world.emotes) { let best = null; for (const c of world.cells) if (c.pid === pid && (!best || c.r > best.r)) best = c; em.cell = best ? best.id : 0; }
     if (now - hudT > 200) { hudT = now; updateHud(now); }
-    if (now - miniT > 120) { miniT = now; renderer.drawMinimap($('mini'), window.innerHeight < 460 ? 78 : 104); }
   }
   void before;
   renderer.draw(now, inGame && input.enabled ? input.joy : null, inGame && world.alive ? input : null);

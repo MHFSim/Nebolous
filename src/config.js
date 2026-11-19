@@ -44,7 +44,7 @@ export const MIN_EJECT_MASS = 32;
 export const EJECT_COST = 15;
 export const EJECT_MASS = 12;
 export const MAX_CELL_MASS = 22500;
-export const EAT_RATIO = 1.2;
+export const EAT_RATIO = 1.1; // mindestens 10 % größer
 export const MAX_PLAYERS = 40; // inkl. Bots
 export const MAX_HUMANS = 12;
 

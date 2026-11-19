@@ -676,7 +676,7 @@ export class Sim {
 
   playerDied(p, killer) {
     p.alive = false; p.deaths++; p.item = 0;
-    p.respawnAt = this.time + (p.bot ? this.rand(2, 5) : 1.2);
+    p.respawnAt = this.time + (p.bot ? 5 : 1.2);
     p.wantSpawn = false;
     if (killer) killer.kills++;
     if (this.opts.mode === 'royale' && this.phase === 'play') {
